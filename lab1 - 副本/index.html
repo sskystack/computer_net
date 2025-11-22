@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Telegram Style</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0088cc;
+            --primary-dark: #0077b5;
+            --text-primary: #222222;
+            --text-secondary: #999999;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --border: #e5e5e5;
+            --message-self: #e1ffc7;
+            --message-other: #ffffff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: var(--bg-secondary);
+            overflow: hidden;
+        }
+
+        /* ==================== 登录屏幕 ==================== */
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            background: var(--bg-primary);
+        }
+
+        .login-content {
+            width: 100%;
+            max-width: 360px;
+            padding: 20px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-logo {
+            font-size: 56px;
+            margin-bottom: 20px;
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .input-field {
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.1);
+        }
+
+        .input-field::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .login-button {
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+
+        .login-button:hover {
+            background: var(--primary-dark);
+        }
+
+        .login-button:active {
+            transform: scale(0.98);
+        }
+
+        /* ==================== 主应用 ==================== */
+        .app-container {
+            display: none !important;
+            width: 100%;
+            height: 100vh;
+            background: white;
+            flex-direction: column;
+        }
+
+        .app-container.active {
+            display: flex !important;
+            flex-direction: column;
+        }
+
+        /* --------- 用户信息栏 --------- */
+        .user-info-bar {
+            padding: 12px 20px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+        }
+
+        .user-info-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .user-name {
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* --------- 主内容区 --------- */
+        .app-main {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            min-height: 0; /* 关键：允许flex子元素收缩并启用滚动 */
+            overflow: hidden; /* 防止内容溢出 */
+        }
+
+        /* --------- 侧边栏 --------- */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止内容溢出 */
+            min-height: 0; /* 允许flex子元素收缩 */
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .chats-list {
+            flex: 1;
+            overflow-y: scroll; /* 左侧用户列表也强制显示滚动条 */
+            padding: 4px 0;
+            min-height: 0; /* 确保flex子元素可以滚动 */
+        }
+
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-primary);
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #dd0000;
+        }
+
+        .logout-btn:active {
+            transform: scale(0.98);
+        }
+
+        .chat-item {
+            padding: 8px 8px;
+            margin: 0 8px;
+            border-radius: 10px;
+            transition: all 0.2s;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: transparent;
+            width: calc(100% - 16px);
+            text-align: left;
+        }
+
+        .chat-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .chat-item.current-user {
+            background: #f0f0f0;
+        }
+
+        .chat-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .chat-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .chat-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-preview {
+            font-size: 13px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --------- 主聊天区域 --------- */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            min-height: 0; /* 关键：允许flex子元素收缩并启用滚动 */
+            overflow: hidden; /* 防止内容溢出 */
+        }
+
+        .chat-header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .chat-header-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .chat-header-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* 消息容器 */
+        .messages {
+            flex: 1;
+            overflow-y: scroll; /* 改为scroll强制显示滚动条 */
+            padding: 20px 24px;
+            background: white;
+            min-height: 0; /* 确保flex子元素可以滚动 */
+            /* 移除 display: flex 和 flex-direction: column */
+            /* 改用普通的块级布局，让内容自然堆叠 */
+        }
+
+        .empty-chat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            gap: 16px;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+        }
+
+        .empty-text {
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px; /* 保持消息间距 */
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.own {
+            justify-content: flex-end;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            max-width: 65%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .message.own .message-content {
+            align-items: flex-end;
+        }
+
+        .message-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 4px;
+            background: var(--primary);
+            display: inline-block;
+            margin-left: 0;
+        }
+
+        .message.own .message-name {
+            display: inline-block;
+            color: white;
+            text-align: right;
+            background: #999999;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .message-name.own-name {
+            color: white;
+            text-align: right;
+            background: #999999;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .message-text {
+            padding: 12px 16px;
+            border-radius: 10px;
+            word-wrap: break-word;
+            line-height: 1.6;
+            font-size: 18px;
+        }
+
+        .message.own .message-text {
+            background: var(--message-self);
+            color: #000;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.other .message-text {
+            background: var(--message-other);
+            color: var(--text-primary);
+            border-bottom-left-radius: 2px;
+            border: 1px solid var(--border);
+        }
+
+        .message.system .message-text {
+            background: transparent;
+            color: var(--text-secondary);
+            text-align: center;
+            font-size: 13px;
+            align-self: center;
+            padding: 6px 0;
+        }
+
+        .message-time {
+            font-size: 14px;
+            color: var(--text-secondary);
+            padding: 0 12px;
+        }
+
+        /* --------- 输入区域 --------- */
+        .input-area {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            background: white;
+        }
+
+        .input-field-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 12px 18px;
+            gap: 8px;
+        }
+
+        .input-field-wrapper input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-field-wrapper input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 12px; /* 加宽滚动条，更明显 */
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; /* 改为浅灰色背景，更明显 */
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888; /* 改为更深的颜色 */
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; /* 悬停时更深 */
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                z-index: 100;
+            }
+
+            .sidebar.show {
+                display: flex;
+            }
+
+            .message-content {
+                max-width: 80%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ==================== 登录屏幕 ==================== -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-content">
+            <div class="login-header">
+                <div class="login-logo">✈️</div>
+                <h1 class="login-title">Chat</h1>
+                <p class="login-subtitle">连接到你的聊天服务器</p>
+            </div>
+
+            <form class="login-form" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label class="input-label">服务器地址</label>
+                    <input type="text" class="input-field" id="serverAddr" placeholder="localhost" value="localhost">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">服务器端口</label>
+                    <input type="number" class="input-field" id="serverPort" placeholder="12345" value="12345">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">用户名</label>
+                    <input type="text" class="input-field" id="username" placeholder="输入你的用户名" value="">
+                </div>
+
+                <button type="submit" class="login-button">登录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== 主应用 ==================== -->
+    <div class="app-container" id="appContainer">
+        <!-- 用户信息栏 -->
+        <div class="user-info-bar">
+            <div class="user-info-content">
+                <span class="user-label">当前用户:</span>
+                <span class="user-name" id="currentUserName"></span>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="app-main">
+            <!-- 左侧栏 -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">聊天</div>
+                </div>
+
+                <div class="chats-list" id="chatsList">
+                    <!-- 聊天项目将在这里添加 -->
+                </div>
+
+                <!-- 底部退出按钮 -->
+                <div class="sidebar-footer">
+                    <button class="logout-btn" onclick="logout()">退出登录</button>
+                </div>
+            </div>
+
+            <!-- 聊天区域 -->
+            <div class="chat-area">
+                <div class="chat-header" id="chatHeader" style="display: none;">
+                    <div class="chat-header-info">
+                        <div class="chat-header-name" id="chatHeaderName"></div>
+                        <div class="chat-header-status">在线</div>
+                    </div>
+                </div>
+
+                <div class="messages" id="messagesContainer">
+                    <div class="empty-chat">
+                        <div class="empty-icon">✈️</div>
+                        <div class="empty-text">选择一个聊天开始消息</div>
+                    </div>
+                </div>
+
+                <div class="input-area" id="inputArea" style="display: none;">
+                    <div class="input-field-wrapper">
+                        <input type="text" id="messageInput" placeholder="消息" onkeypress="handleInputKeyPress(event)">
+                    </div>
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>
