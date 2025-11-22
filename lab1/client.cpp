@@ -29,10 +29,17 @@ std::atomic<bool> client_running(true);
 SOCKET client_socket = INVALID_SOCKET;
 std::string username;
 
+// 消息统计
+struct ClientStats {
+    std::atomic<int> messages_sent{0};      // 发送的消息数
+    std::atomic<int> messages_received{0};  // 接收的消息数
+} client_stats;
+
 // 函数声明
 void receive_messages();
 void send_message(MessageType type, const std::string& content = "");
 void display_help();
+void display_client_statistics();
 
 /**
  * 接收服务器消息的线程函数
@@ -81,6 +88,11 @@ void receive_messages() {
                 std::string sender(msg.username, msg.username_len);
                 std::string message_content(msg.message, msg.message_len);
                 std::string time_str = format_timestamp(msg.timestamp);
+
+                // 统计接收到的消息（不包括自己发送的）
+                if (sender != username) {
+                    client_stats.messages_received++;
+                }
 
                 // 如果是自己发送的消息，显示"我"，否则显示发送者用户名
                 std::string display_name = (sender == username) ? "我" : sender;
@@ -143,6 +155,7 @@ void display_help() {
     std::cout << "命令说明:" << std::endl;
     std::cout << "  /quit       - 退出聊天程序" << std::endl;
     std::cout << "  /help       - 显示帮助信息" << std::endl;
+    std::cout << "  /stats      - 显示消息统计" << std::endl;
     std::cout << "  其他输入    - 发送聊天消息" << std::endl;
     std::cout << "\n注意:" << std::endl;
     std::cout << "  - 要发送包含'quit'的聊天内容，直接输入即可" << std::endl;
@@ -150,6 +163,16 @@ void display_help() {
     std::cout << "  - 支持中英文聊天内容" << std::endl;
     std::cout << "  - 支持显示消息发送时间" << std::endl;
     std::cout << "========================================\n" << std::endl;
+}
+
+/**
+ * 显示客户端消息统计
+ */
+void display_client_statistics() {
+    std::cout << "\n========== 消息统计 ==========" << std::endl;
+    std::cout << "已发送消息: " << client_stats.messages_sent.load() << " 条" << std::endl;
+    std::cout << "已接收消息: " << client_stats.messages_received.load() << " 条" << std::endl;
+    std::cout << "============================\n" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -255,11 +278,18 @@ int main(int argc, char* argv[]) {
         // 处理特殊命令
         if (input == "/quit") {
             std::cout << "[系统] 正在退出聊天..." << std::endl;
+
+            // 显示最终统计
+            display_client_statistics();
+
             send_message(MSG_LOGOUT, "");
             client_running = false;
             break;
         } else if (input == "/help") {
             display_help();
+            continue;
+        } else if (input == "/stats") {
+            display_client_statistics();
             continue;
         } else if (input.empty()) {
             continue;
@@ -273,6 +303,9 @@ int main(int argc, char* argv[]) {
 
         // 发送聊天消息
         send_message(MSG_CHAT, input);
+
+        // 统计发送的消息
+        client_stats.messages_sent++;
     }
 
     // 关闭连接

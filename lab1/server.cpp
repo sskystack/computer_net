@@ -38,12 +38,22 @@ std::vector<ClientInfo*> clients;
 std::mutex clients_mutex;
 bool server_running = true;
 
+// 消息统计
+struct MessageStats {
+    int total_messages_received = 0;    // 服务器接收到的总消息数
+    int total_messages_forwarded = 0;   // 服务器转发的总消息数
+    int total_login_count = 0;          // 总登录次数
+    int total_logout_count = 0;         // 总退出次数
+} message_stats;
+std::mutex stats_mutex;
+
 // 函数声明
 void broadcast_message(const ChatMessage& msg, SOCKET exclude_socket = INVALID_SOCKET);
 void handle_client(ClientInfo* client);
 void accept_clients(SOCKET listen_socket);
 void server_command_handler();
 void display_online_users();
+void display_statistics();
 
 /**
  * 广播消息给所有客户端（可排除某个客户端）
@@ -62,6 +72,7 @@ void broadcast_message(const ChatMessage& msg, SOCKET exclude_socket) {
         return;
     }
 
+    int forwarded_count = 0; // 统计成功转发的消息数
     std::lock_guard<std::mutex> lock(clients_mutex);
     for (auto client : clients) {
         if (client->active && client->socket != exclude_socket && client->socket != INVALID_SOCKET) {
@@ -69,8 +80,16 @@ void broadcast_message(const ChatMessage& msg, SOCKET exclude_socket) {
             if (sent == SOCKET_ERROR) {
                 // 发送失败时标记客户端为非活跃状态，但不输出错误
                 client->active = false;
+            } else {
+                forwarded_count++; // 成功转发消息
             }
         }
+    }
+
+    // 更新转发统计
+    if (forwarded_count > 0) {
+        std::lock_guard<std::mutex> stats_lock(stats_mutex);
+        message_stats.total_messages_forwarded += forwarded_count;
     }
 }
 
@@ -102,6 +121,19 @@ void display_online_users() {
     } else {
         std::cout << "[统计] 当前没有在线用户" << std::endl;
     }
+}
+
+/**
+ * 显示消息统计信息
+ */
+void display_statistics() {
+    std::lock_guard<std::mutex> lock(stats_mutex);
+    std::cout << "\n========== 消息统计 ==========" << std::endl;
+    std::cout << "接收消息总数: " << message_stats.total_messages_received << std::endl;
+    std::cout << "转发消息总数: " << message_stats.total_messages_forwarded << std::endl;
+    std::cout << "用户登录次数: " << message_stats.total_login_count << std::endl;
+    std::cout << "用户退出次数: " << message_stats.total_logout_count << std::endl;
+    std::cout << "============================\n" << std::endl;
 }
 
 /**
@@ -155,6 +187,13 @@ void handle_client(ClientInfo* client) {
                 client->username = std::string(msg.username, msg.username_len);
                 safe_username = client->username; // 保存安全副本
                 logged_in = true;
+
+                // 更新登录统计
+                {
+                    std::lock_guard<std::mutex> stats_lock(stats_mutex);
+                    message_stats.total_login_count++;
+                }
+
                 std::cout << "[信息] 用户 " << safe_username << " 加入聊天" << std::endl;
 
                 // 广播用户加入消息
@@ -176,6 +215,12 @@ void handle_client(ClientInfo* client) {
             }
 
             case MSG_LOGOUT: {
+                // 更新退出统计
+                {
+                    std::lock_guard<std::mutex> stats_lock(stats_mutex);
+                    message_stats.total_logout_count++;
+                }
+
                 std::cout << "[信息] 用户 " << safe_username << " 主动退出" << std::endl;
 
                 // 广播用户离开消息
@@ -193,6 +238,12 @@ void handle_client(ClientInfo* client) {
             }
 
             case MSG_CHAT: {
+                // 更新消息接收统计
+                {
+                    std::lock_guard<std::mutex> stats_lock(stats_mutex);
+                    message_stats.total_messages_received++;
+                }
+
                 std::string message_content(msg.message, msg.message_len);
                 std::string time_str = format_timestamp(msg.timestamp);
                 std::cout << "[" << time_str << "] [" << safe_username << "] " << message_content << std::endl;
@@ -247,13 +298,17 @@ void accept_clients(SOCKET listen_socket) {
  */
 void server_command_handler() {
     std::string command;
-    std::cout << "服务器命令: 输入 'quit' 关闭服务器" << std::endl;
+    std::cout << "服务器命令: 输入 'stats' 查看统计, 'quit' 关闭服务器" << std::endl;
 
     while (server_running) {
         std::getline(std::cin, command);
 
         if (command == "quit") {
             std::cout << "[信息] 正在关闭服务器..." << std::endl;
+
+            // 显示最终统计
+            display_statistics();
+
             server_running = false;
 
             // 向所有客户端发送服务器关闭消息
@@ -267,6 +322,8 @@ void server_command_handler() {
 
             broadcast_message(shutdown_msg);
             break;
+        } else if (command == "stats") {
+            display_statistics();
         }
     }
 }
