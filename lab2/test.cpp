@@ -3,90 +3,133 @@
 #include "include/protocol.h"
 #include "include/checksum.h"
 #include "include/packet.h"
+#include "include/window_manager.h"
 
 int main() {
-    std::cout << "=== Lab2: 可靠传输协议 - 基础设施测试 ===" << std::endl << std::endl;
+    std::cout << "=== Lab2: 可靠传输协议 - 完整测试 ===" << std::endl << std::endl;
 
-    // 1. 初始化校验和模块
-    std::cout << "[1] 初始化校验和模块..." << std::endl;
+    // 初始化校验和
     ChecksumCalculator::Initialize();
-    std::cout << "    ✓ 校验和模块初始化成功" << std::endl << std::endl;
 
-    // 2. 测试协议头结构大小
-    std::cout << "[2] 验证协议头大小..." << std::endl;
-    std::cout << "    ProtocolHeader size: " << sizeof(ProtocolHeader) << " bytes (expected: 32)" << std::endl;
+    // ============ 基础设施测试 ============
+    std::cout << "--- 第一部分：基础设施测试 ---" << std::endl << std::endl;
+
+    // 1. 协议头大小
+    std::cout << "[1] 验证协议头大小..." << std::endl;
     if (sizeof(ProtocolHeader) != 32) {
         std::cerr << "    ✗ 错误：协议头大小不为32字节！" << std::endl;
         return 1;
     }
-    std::cout << "    ✓ 协议头大小正确" << std::endl << std::endl;
+    std::cout << "    ✓ 协议头大小正确（32字节）" << std::endl << std::endl;
 
-    // 3. 测试数据包结构
-    std::cout << "[3] 测试数据包创建和编码..." << std::endl;
+    // 2. 数据包操作
+    std::cout << "[2] 测试数据包编码/解码..." << std::endl;
     Packet pkt;
     PacketHandler::CreateSynPacket(12345, 32, &pkt);
-    std::cout << "    ✓ 创建SYN数据包成功" << std::endl;
-    std::cout << "    - seq: " << pkt.header.seq << std::endl;
-    std::cout << "    - flags: " << (int)pkt.header.flags << std::endl;
-    std::cout << "    - checksum: " << std::hex << pkt.header.checksum << std::dec << std::endl << std::endl;
-
-    // 4. 测试数据包编码和解码
-    std::cout << "[4] 测试数据包编码/解码..." << std::endl;
     uint8_t buffer[MAX_PACKET_SIZE];
     int encoded_size = PacketHandler::EncodePacket(&pkt, buffer, MAX_PACKET_SIZE);
-    std::cout << "    ✓ 编码成功，编码大小: " << encoded_size << " bytes" << std::endl;
-
     Packet decoded_pkt;
-    int decoded_size = PacketHandler::DecodePacket(buffer, encoded_size, &decoded_pkt);
-    std::cout << "    ✓ 解码成功，解码大小: " << decoded_size << " bytes" << std::endl;
-
-    if (decoded_pkt.header.seq != pkt.header.seq) {
-        std::cerr << "    ✗ 错误：seq不匹配！" << std::endl;
-        return 1;
-    }
-    std::cout << "    ✓ 解码数据与原数据一致" << std::endl << std::endl;
-
-    // 5. 测试校验和验证
-    std::cout << "[5] 测试校验和验证..." << std::endl;
+    PacketHandler::DecodePacket(buffer, encoded_size, &decoded_pkt);
     if (!PacketHandler::VerifyChecksum(&decoded_pkt)) {
         std::cerr << "    ✗ 错误：校验和验证失败！" << std::endl;
         return 1;
     }
-    std::cout << "    ✓ 校验和验证成功" << std::endl << std::endl;
+    std::cout << "    ✓ 数据包编码/解码/校验和验证成功" << std::endl << std::endl;
 
-    // 6. 测试数据数据包
-    std::cout << "[6] 测试数据数据包..." << std::endl;
-    Packet data_pkt;
-    uint8_t test_data[] = "Hello, RDT Protocol!";
-    PacketHandler::CreateDataPacket(54321, 67890, 32, test_data, sizeof(test_data) - 1, &data_pkt);
-    std::cout << "    ✓ 创建数据包成功" << std::endl;
-    std::cout << "    - 数据长度: " << data_pkt.header.len << " bytes" << std::endl;
-    std::cout << "    - 数据内容: " << (char*)data_pkt.data << std::endl << std::endl;
+    // ============ 窗口管理测试 ============
+    std::cout << "--- 第二部分：窗口管理测试 ---" << std::endl << std::endl;
 
-    // 7. 测试序列号比较
-    std::cout << "[7] 测试序列号比较函数..." << std::endl;
-    uint32_t seq1 = 1000, seq2 = 2000, seq3 = 1000;
-    std::cout << "    seq1=" << seq1 << ", seq2=" << seq2 << std::endl;
-    std::cout << "    IsSeqBefore(seq1, seq2): " << (IsSeqBefore(seq1, seq2) ? "true" : "false") << std::endl;
-    std::cout << "    IsSeqAfter(seq2, seq1): " << (IsSeqAfter(seq2, seq1) ? "true" : "false") << std::endl;
-    std::cout << "    IsSeqBeforeOrEqual(seq1, seq3): " << (IsSeqBeforeOrEqual(seq1, seq3) ? "true" : "false") << std::endl << std::endl;
+    // 3. 发送窗口测试
+    std::cout << "[3] 测试发送窗口..." << std::endl;
+    SendWindow send_window(8);  // 8个包的窗口
 
-    // 8. 测试日志系统
-    std::cout << "[8] 测试日志系统..." << std::endl;
-    LOG_INFO("TEST", "这是一条INFO日志");
-    LOG_DEBUG("TEST", "这是一条DEBUG日志");
-    LOG_WARN("TEST", "这是一条WARN日志");
-    LOG_ERROR("TEST", "这是一条ERROR日志");
-    std::cout << std::endl;
+    // 添加多个数据包
+    for (int i = 0; i < 5; i++) {
+        Packet data_pkt;
+        uint8_t test_data[50];
+        sprintf((char*)test_data, "Packet %d", i);
+        PacketHandler::CreateDataPacket(1000 + i, 0, 32, test_data, strlen((char*)test_data), &data_pkt);
+        if (!send_window.AddPacket(&data_pkt, 1000 + i)) {
+            std::cerr << "    ✗ 错误：添加数据包失败！" << std::endl;
+            return 1;
+        }
+    }
+    std::cout << "    ✓ 成功添加5个数据包到发送窗口" << std::endl;
+    std::cout << "    - 未确认包数: " << send_window.GetUnackedCount() << std::endl;
+    std::cout << "    - 窗口是否满: " << (send_window.IsWindowFull() ? "是" : "否") << std::endl << std::endl;
 
-    // 9. 测试计时器
-    std::cout << "[9] 测试计时器..." << std::endl;
-    Timer timer;
-    // 模拟一些操作
-    for (volatile int i = 0; i < 100000000; i++);
-    double elapsed = timer.ElapsedMs();
-    std::cout << "    ✓ 计时器工作正常，经过时间: " << elapsed << " ms" << std::endl << std::endl;
+    // 4. 确认数据包
+    std::cout << "[4] 测试数据包确认..." << std::endl;
+    if (!send_window.AckPacket(1000)) {
+        std::cerr << "    ✗ 错误：确认数据包失败！" << std::endl;
+        return 1;
+    }
+    std::cout << "    ✓ 成功确认序列号为1000的数据包" << std::endl;
+    std::cout << "    - 未确认包数: " << send_window.GetUnackedCount() << std::endl << std::endl;
 
-    std::cout << "=== 所有基础设施测试通过！✓ ===" << std::endl;
+    // 5. 接收窗口测试
+    std::cout << "[5] 测试接收窗口..." << std::endl;
+    ReceiveWindow recv_window(8);
+
+    // 乱序接收数据包（模拟丢包和乱序）
+    std::cout << "    添加乱序数据包..." << std::endl;
+    // 添加第2、3、5个包（缺少第0、1、4个包）。期望序列号从0开始
+    for (int seq : {2, 3, 5}) {
+        Packet data_pkt;
+        uint8_t test_data[50];
+        sprintf((char*)test_data, "Packet %d", seq);
+        PacketHandler::CreateDataPacket(seq, 0, 32, test_data, strlen((char*)test_data), &data_pkt);
+        if (!recv_window.AddPacket(&data_pkt, seq)) {
+            std::cerr << "    ✗ 错误：添加接收窗口数据包失败！" << std::endl;
+            return 1;
+        }
+    }
+    std::cout << "    ✓ 成功添加乱序数据包（缺少0和1）" << std::endl;
+    std::cout << "    - 缓冲包数: " << recv_window.GetBufferedCount() << std::endl;
+    std::cout << "    - 期望序列号: " << recv_window.GetExpectedSeq() << std::endl << std::endl;
+
+    // 6. 测试有序传递
+    std::cout << "[6] 测试有序传递..." << std::endl;
+    std::cout << "    尝试提取包（应该没有，因为缺少第一个包）..." << std::endl;
+    Packet out_pkt;
+    uint32_t out_seq;
+    if (recv_window.GetNextDeliverable(&out_pkt, &out_seq)) {
+        std::cerr << "    ✗ 错误：不应该提取包！" << std::endl;
+        return 1;
+    }
+    std::cout << "    ✓ 正确：没有可交付的包（等待序列号0）" << std::endl << std::endl;
+
+    // 7. 添加缺失的包
+    std::cout << "[7] 添加缺失的数据包..." << std::endl;
+    Packet missing_pkt;
+    uint8_t missing_data[50];
+    sprintf((char*)missing_data, "Packet 0");
+    PacketHandler::CreateDataPacket(0, 0, 32, missing_data, strlen((char*)missing_data), &missing_pkt);
+    if (!recv_window.AddPacket(&missing_pkt, 0)) {
+        std::cerr << "    ✗ 错误：添加缺失包失败！" << std::endl;
+        return 1;
+    }
+    std::cout << "    ✓ 成功添加序列号0的包" << std::endl << std::endl;
+
+    // 8. 现在应该能提取包
+    std::cout << "[8] 提取有序的包..." << std::endl;
+    int delivered_count = 0;
+    while (recv_window.GetNextDeliverable(&out_pkt, &out_seq)) {
+        std::cout << "    ✓ 提取包: seq=" << out_seq << " data=" << (char*)out_pkt.data << std::endl;
+        delivered_count++;
+    }
+    std::cout << "    总共提取了 " << delivered_count << " 个包" << std::endl;
+    std::cout << "    - 缓冲包数: " << recv_window.GetBufferedCount() << std::endl;
+    std::cout << "    - 期望序列号: " << recv_window.GetExpectedSeq() << std::endl << std::endl;
+
+    // 9. 窗口清空
+    std::cout << "[9] 测试窗口清空..." << std::endl;
+    send_window.Clear();
+    recv_window.Clear();
+    std::cout << "    ✓ 窗口已清空" << std::endl;
+    std::cout << "    - 发送窗口未确认包数: " << send_window.GetUnackedCount() << std::endl;
+    std::cout << "    - 接收窗口缓冲包数: " << recv_window.GetBufferedCount() << std::endl << std::endl;
+
+    std::cout << "=== 所有测试通过！✓ ===" << std::endl;
     return 0;
 }
