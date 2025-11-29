@@ -59,6 +59,18 @@ bool RDTSocket::Initialize(uint16_t window_size) {
         return false;
     }
 
+    // 设置SO_REUSEADDR选项
+    int reuse = 1;
+#ifdef _WIN32
+    if (setsockopt(udp_socket_, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0) {
+        LOG_WARN("RDTSocket", "Failed to set SO_REUSEADDR");
+    }
+#else
+    if (setsockopt(udp_socket_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        LOG_WARN("RDTSocket", "Failed to set SO_REUSEADDR");
+    }
+#endif
+
     // 设置套接字为非阻塞模式（接收线程中使用）
     // 在Windows中使用ioctlsocket，在Linux中使用fcntl
 
@@ -82,16 +94,31 @@ bool RDTSocket::Initialize(uint16_t window_size) {
 // ============ 绑定和监听 ============
 
 bool RDTSocket::Bind(uint16_t port) {
+    LOG_DEBUG("RDTSocket", "Bind() called for port " + std::to_string(port));
+
     if (state_ != STATE_CLOSED) {
         LOG_WARN("RDTSocket", "Socket already bound");
+        return false;
+    }
+
+    if (udp_socket_ == INVALID_SOCKET) {
+        LOG_ERROR("RDTSocket", "Invalid socket");
         return false;
     }
 
     local_addr_.sin_addr.s_addr = htonl(INADDR_ANY);
     local_addr_.sin_port = htons(port);
 
-    if (bind(udp_socket_, (struct sockaddr*)&local_addr_, sizeof(local_addr_)) == SOCKET_ERROR) {
+    LOG_DEBUG("RDTSocket", "Calling bind() on socket");
+
+    int result = bind(udp_socket_, (struct sockaddr*)&local_addr_, sizeof(local_addr_));
+    if (result == SOCKET_ERROR) {
+#ifdef _WIN32
+        int err = WSAGetLastError();
+        LOG_ERROR("RDTSocket", "Bind failed on port " + std::to_string(port) + " (error: " + std::to_string(err) + ")");
+#else
         LOG_ERROR("RDTSocket", "Bind failed on port " + std::to_string(port));
+#endif
         return false;
     }
 
@@ -181,6 +208,9 @@ bool RDTSocket::Connect(const std::string& remote_ip, uint16_t remote_port) {
         StopThreads();
         return false;
     }
+
+    // SYN消耗一个序列号
+    local_seq_ += 1;
 
     SetState(STATE_SYN_SENT);
     LOG_INFO("RDTSocket", "Connecting to " + remote_ip + ":" + std::to_string(remote_port));
@@ -382,8 +412,38 @@ void RDTSocket::SetRecvTimeout(int timeout_ms) {
 
 void RDTSocket::SetState(ConnectionState new_state) {
     std::lock_guard<std::mutex> lock(state_mutex_);
-    LOG_DEBUG("RDTSocket", "State transition: " + std::string(GetStateName()) +
-              " -> " + std::to_string(new_state));
+    // Get the state name without acquiring the lock again
+    const char* old_name = "UNKNOWN";
+    switch (state_) {
+        case STATE_CLOSED: old_name = "CLOSED"; break;
+        case STATE_LISTEN: old_name = "LISTEN"; break;
+        case STATE_SYN_SENT: old_name = "SYN_SENT"; break;
+        case STATE_SYN_RECV: old_name = "SYN_RECV"; break;
+        case STATE_ESTABLISHED: old_name = "ESTABLISHED"; break;
+        case STATE_FIN_WAIT_1: old_name = "FIN_WAIT_1"; break;
+        case STATE_FIN_WAIT_2: old_name = "FIN_WAIT_2"; break;
+        case STATE_CLOSING: old_name = "CLOSING"; break;
+        case STATE_TIME_WAIT: old_name = "TIME_WAIT"; break;
+        case STATE_CLOSE_WAIT: old_name = "CLOSE_WAIT"; break;
+        case STATE_LAST_ACK: old_name = "LAST_ACK"; break;
+    }
+
+    const char* new_name = "UNKNOWN";
+    switch (new_state) {
+        case STATE_CLOSED: new_name = "CLOSED"; break;
+        case STATE_LISTEN: new_name = "LISTEN"; break;
+        case STATE_SYN_SENT: new_name = "SYN_SENT"; break;
+        case STATE_SYN_RECV: new_name = "SYN_RECV"; break;
+        case STATE_ESTABLISHED: new_name = "ESTABLISHED"; break;
+        case STATE_FIN_WAIT_1: new_name = "FIN_WAIT_1"; break;
+        case STATE_FIN_WAIT_2: new_name = "FIN_WAIT_2"; break;
+        case STATE_CLOSING: new_name = "CLOSING"; break;
+        case STATE_TIME_WAIT: new_name = "TIME_WAIT"; break;
+        case STATE_CLOSE_WAIT: new_name = "CLOSE_WAIT"; break;
+        case STATE_LAST_ACK: new_name = "LAST_ACK"; break;
+    }
+
+    LOG_DEBUG("RDTSocket", "State transition: " + std::string(old_name) + " -> " + std::string(new_name));
     state_ = new_state;
 }
 
@@ -600,6 +660,9 @@ void RDTSocket::HandleSyn(const Packet& packet) {
     PacketHandler::CreateSynAckPacket(local_seq_, expected_seq_, DEFAULT_WINDOW_SIZE, &syn_ack_pkt);
     SendPacket(&syn_ack_pkt);
 
+    // SYN消耗一个序列号
+    local_seq_ += 1;
+
     SetState(STATE_SYN_RECV);
     LOG_INFO("RDTSocket", "SYN-ACK sent");
 }
@@ -616,6 +679,10 @@ void RDTSocket::HandleSynAck(const Packet& packet) {
     remote_seq_ = packet.header.seq;
     expected_seq_ = remote_seq_ + 1;
     remote_window_size_ = packet.header.wnd;
+
+    // 重要：SYN消耗一个序列号，所以DATA应该从local_seq_+1开始
+    // 但这里我们维持local_seq_不变，在Send()中首次创建数据包时才使用
+    // 发送SYN-ACK的ACK不消耗序列号
 
     // 发送ACK完成三路握手
     Packet ack_pkt;
