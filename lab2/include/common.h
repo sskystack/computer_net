@@ -8,6 +8,16 @@
 #include <iomanip>
 #include <thread>
 #include <mutex>
+#include <sstream>
+#include <string>
+
+// Windows Socket 相关头文件
+#ifdef _WIN32
+    #include <winsock2.h>
+    #pragma comment(lib, "ws2_32.lib")
+#else
+    #include <arpa/inet.h>
+#endif
 
 // ============================================
 // 常量定义

@@ -5,6 +5,7 @@
 #include "checksum.h"
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 // ============================================
 // 数据包编码和解码
