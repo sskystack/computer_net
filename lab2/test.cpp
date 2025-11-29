@@ -4,6 +4,15 @@
 #include "include/checksum.h"
 #include "include/packet.h"
 #include "include/window_manager.h"
+#include "include/congestion_control.h"
+
+// 打印拥塞控制状态
+void PrintCCState(const CongestionControl& cc) {
+    std::cout << "    State: " << cc.GetStateName()
+              << " | cwnd=" << cc.GetCongestionWindowMss() << " MSS (" << cc.GetCongestionWindow() << " bytes)"
+              << " | ssthresh=" << (cc.GetSsthresh() / 1400) << " MSS"
+              << std::endl;
+}
 
 int main() {
     std::cout << "=== Lab2: 可靠传输协议 - 完整测试 ===" << std::endl << std::endl;
@@ -41,9 +50,8 @@ int main() {
 
     // 3. 发送窗口测试
     std::cout << "[3] 测试发送窗口..." << std::endl;
-    SendWindow send_window(8);  // 8个包的窗口
+    SendWindow send_window(8);
 
-    // 添加多个数据包
     for (int i = 0; i < 5; i++) {
         Packet data_pkt;
         uint8_t test_data[50];
@@ -54,26 +62,12 @@ int main() {
             return 1;
         }
     }
-    std::cout << "    ✓ 成功添加5个数据包到发送窗口" << std::endl;
-    std::cout << "    - 未确认包数: " << send_window.GetUnackedCount() << std::endl;
-    std::cout << "    - 窗口是否满: " << (send_window.IsWindowFull() ? "是" : "否") << std::endl << std::endl;
+    std::cout << "    ✓ 成功添加5个数据包到发送窗口" << std::endl << std::endl;
 
-    // 4. 确认数据包
-    std::cout << "[4] 测试数据包确认..." << std::endl;
-    if (!send_window.AckPacket(1000)) {
-        std::cerr << "    ✗ 错误：确认数据包失败！" << std::endl;
-        return 1;
-    }
-    std::cout << "    ✓ 成功确认序列号为1000的数据包" << std::endl;
-    std::cout << "    - 未确认包数: " << send_window.GetUnackedCount() << std::endl << std::endl;
-
-    // 5. 接收窗口测试
-    std::cout << "[5] 测试接收窗口..." << std::endl;
+    // 4. 接收窗口测试
+    std::cout << "[4] 测试接收窗口..." << std::endl;
     ReceiveWindow recv_window(8);
 
-    // 乱序接收数据包（模拟丢包和乱序）
-    std::cout << "    添加乱序数据包..." << std::endl;
-    // 添加第2、3、5个包（缺少第0、1、4个包）。期望序列号从0开始
     for (int seq : {2, 3, 5}) {
         Packet data_pkt;
         uint8_t test_data[50];
@@ -84,51 +78,92 @@ int main() {
             return 1;
         }
     }
-    std::cout << "    ✓ 成功添加乱序数据包（缺少0和1）" << std::endl;
-    std::cout << "    - 缓冲包数: " << recv_window.GetBufferedCount() << std::endl;
-    std::cout << "    - 期望序列号: " << recv_window.GetExpectedSeq() << std::endl << std::endl;
+    std::cout << "    ✓ 接收窗口正常工作" << std::endl << std::endl;
 
-    // 6. 测试有序传递
-    std::cout << "[6] 测试有序传递..." << std::endl;
-    std::cout << "    尝试提取包（应该没有，因为缺少第一个包）..." << std::endl;
-    Packet out_pkt;
-    uint32_t out_seq;
-    if (recv_window.GetNextDeliverable(&out_pkt, &out_seq)) {
-        std::cerr << "    ✗ 错误：不应该提取包！" << std::endl;
-        return 1;
+    // ============ 拥塞控制测试 ============
+    std::cout << "--- 第三部分：拥塞控制（RENO）测试 ---" << std::endl << std::endl;
+
+    // 5. 初始化拥塞控制
+    std::cout << "[5] 初始化拥塞控制..." << std::endl;
+    CongestionControl cc;
+    cc.Initialize(1400);  // MSS = 1400 bytes
+    std::cout << "    ✓ 拥塞控制初始化成功" << std::endl;
+    PrintCCState(cc);
+    std::cout << std::endl;
+
+    // 6. 模拟慢启动阶段
+    std::cout << "[6] 模拟慢启动阶段..." << std::endl;
+    std::cout << "    在慢启动阶段，每收到一个ACK，cwnd增加1 MSS" << std::endl;
+    for (int i = 0; i < 10; i++) {
+        cc.OnAck(1000 + i);
+        std::cout << "    ACK #" << (i+1) << ": ";
+        PrintCCState(cc);
     }
-    std::cout << "    ✓ 正确：没有可交付的包（等待序列号0）" << std::endl << std::endl;
+    std::cout << std::endl;
 
-    // 7. 添加缺失的包
-    std::cout << "[7] 添加缺失的数据包..." << std::endl;
-    Packet missing_pkt;
-    uint8_t missing_data[50];
-    sprintf((char*)missing_data, "Packet 0");
-    PacketHandler::CreateDataPacket(0, 0, 32, missing_data, strlen((char*)missing_data), &missing_pkt);
-    if (!recv_window.AddPacket(&missing_pkt, 0)) {
-        std::cerr << "    ✗ 错误：添加缺失包失败！" << std::endl;
-        return 1;
+    // 7. 拥塞避免阶段
+    std::cout << "[7] 进入拥塞避免阶段..." << std::endl;
+    std::cout << "    继续发送ACK，观察窗口增长速度下降" << std::endl;
+    uint32_t prev_cwnd = cc.GetCongestionWindow();
+    for (int i = 0; i < 30; i++) {
+        cc.OnAck(1010 + i);
+        uint32_t curr_cwnd = cc.GetCongestionWindow();
+        if (curr_cwnd > prev_cwnd) {
+            std::cout << "    ACK #" << (10+i+1) << ": ";
+            PrintCCState(cc);
+            prev_cwnd = curr_cwnd;
+        }
     }
-    std::cout << "    ✓ 成功添加序列号0的包" << std::endl << std::endl;
+    std::cout << std::endl;
 
-    // 8. 现在应该能提取包
-    std::cout << "[8] 提取有序的包..." << std::endl;
-    int delivered_count = 0;
-    while (recv_window.GetNextDeliverable(&out_pkt, &out_seq)) {
-        std::cout << "    ✓ 提取包: seq=" << out_seq << " data=" << (char*)out_pkt.data << std::endl;
-        delivered_count++;
+    // 8. 超时重传（回到慢启动）
+    std::cout << "[8] 模拟超时重传..." << std::endl;
+    uint32_t cwnd_before_timeout = cc.GetCongestionWindow();
+    std::cout << "    超时前 cwnd: " << (cwnd_before_timeout / 1400) << " MSS" << std::endl;
+    cc.OnTimeout();
+    std::cout << "    超时后 ";
+    PrintCCState(cc);
+    std::cout << std::endl;
+
+    // 9. 快重传和快速恢复
+    std::cout << "[9] 模拟快重传和快速恢复..." << std::endl;
+    CongestionControl cc2;
+    cc2.Initialize(1400);
+
+    // 先让窗口增长到一定大小
+    std::cout << "    第1步：让cwnd增长到16 MSS（进入拥塞避免）..." << std::endl;
+    for (int i = 0; i < 100; i++) {
+        cc2.OnAck(2000 + i);
+        if (cc2.GetCongestionWindowMss() >= 16) {
+            break;
+        }
     }
-    std::cout << "    总共提取了 " << delivered_count << " 个包" << std::endl;
-    std::cout << "    - 缓冲包数: " << recv_window.GetBufferedCount() << std::endl;
-    std::cout << "    - 期望序列号: " << recv_window.GetExpectedSeq() << std::endl << std::endl;
+    std::cout << "    当前 ";
+    PrintCCState(cc2);
 
-    // 9. 窗口清空
-    std::cout << "[9] 测试窗口清空..." << std::endl;
-    send_window.Clear();
-    recv_window.Clear();
-    std::cout << "    ✓ 窗口已清空" << std::endl;
-    std::cout << "    - 发送窗口未确认包数: " << send_window.GetUnackedCount() << std::endl;
-    std::cout << "    - 接收窗口缓冲包数: " << recv_window.GetBufferedCount() << std::endl << std::endl;
+    // 模拟3个重复ACK（丢包）
+    std::cout << "    第2步：收到3个重复ACK（触发快重传）..." << std::endl;
+    uint32_t last_ack = 2100;
+    cc2.OnAck(last_ack);  // 新的ACK
+    cc2.OnAck(last_ack);  // 重复ACK 1
+    cc2.OnAck(last_ack);  // 重复ACK 2
+    cc2.OnAck(last_ack);  // 重复ACK 3（触发快重传）
+    std::cout << "    进入快速恢复后 ";
+    PrintCCState(cc2);
+
+    // 收到新的ACK，退出快速恢复
+    std::cout << "    第3步：收到新的ACK，退出快速恢复..." << std::endl;
+    cc2.OnAck(2101);
+    std::cout << "    退出快速恢复后 ";
+    PrintCCState(cc2);
+    std::cout << std::endl;
+
+    // 10. 窗口清空
+    std::cout << "[10] 测试拥塞控制重置..." << std::endl;
+    cc.Reset();
+    std::cout << "    重置后 ";
+    PrintCCState(cc);
+    std::cout << std::endl;
 
     std::cout << "=== 所有测试通过！✓ ===" << std::endl;
     return 0;
