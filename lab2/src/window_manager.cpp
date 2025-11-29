@@ -217,10 +217,13 @@ bool ReceiveWindow::GetNextDeliverable(Packet* out_packet, uint32_t* out_seq) {
         *out_packet = it->second.packet;
         *out_seq = it->second.seq;
 
+        // 更新期望序列号：加上数据包的长度（字节数）
+        uint16_t pkt_len = it->second.packet.header.len;
         packets_.erase(it);
-        expected_seq_++;
+        expected_seq_ += pkt_len;
 
-        LOG_DEBUG("ReceiveWindow", "Delivering packet: seq=" + std::to_string(*out_seq));
+        LOG_DEBUG("ReceiveWindow", "Delivering packet: seq=" + std::to_string(*out_seq) +
+                  " len=" + std::to_string(pkt_len) + " next_expected=" + std::to_string(expected_seq_));
         return true;
     }
 
@@ -250,7 +253,14 @@ void ReceiveWindow::Clear() {
     LOG_DEBUG("ReceiveWindow", "Window cleared");
 }
 
+void ReceiveWindow::SetExpectedSeq(uint32_t seq) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    expected_seq_ = seq;
+    LOG_INFO("ReceiveWindow", "Expected seq set to " + std::to_string(seq));
+}
+
 bool ReceiveWindow::IsSeqInWindow(uint32_t seq) const {
-    uint32_t window_end = expected_seq_ + window_size_;
+    // window_size_ 是数据包个数，需要乘以 DATA_SIZE 得到字节范围
+    uint32_t window_end = expected_seq_ + (window_size_ * DATA_SIZE);
     return IsSeqAfterOrEqual(seq, expected_seq_) && IsSeqBefore(seq, window_end);
 }

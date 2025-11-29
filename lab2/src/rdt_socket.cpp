@@ -312,6 +312,7 @@ int RDTSocket::Send(const uint8_t* data, int length) {
     }
 
     int sent_total = 0;
+    static bool first_data_pkt = true;
 
     // 将数据分割成多个数据包发送
     while (sent_total < length) {
@@ -324,6 +325,12 @@ int RDTSocket::Send(const uint8_t* data, int length) {
 
         // 创建数据包
         Packet data_pkt;
+        if (first_data_pkt) {
+            LOG_INFO("RDTSocket", "[SEQ_TRACE] First DATA packet: local_seq_=" + std::to_string(local_seq_) +
+                     " expected_seq_=" + std::to_string(expected_seq_));
+            first_data_pkt = false;
+        }
+
         PacketHandler::CreateDataPacket(
             local_seq_,
             expected_seq_,
@@ -650,6 +657,8 @@ void RDTSocket::HandleSyn(const Packet& packet) {
     }
 
     LOG_INFO("RDTSocket", "SYN received: seq=" + std::to_string(packet.header.seq));
+    LOG_INFO("RDTSocket", "[SEQ_TRACE] Before HandleSyn: local_seq_=" + std::to_string(local_seq_) +
+             " remote_seq=" + std::to_string(packet.header.seq));
 
     remote_seq_ = packet.header.seq;
     expected_seq_ = remote_seq_ + 1;
@@ -658,10 +667,13 @@ void RDTSocket::HandleSyn(const Packet& packet) {
     // 发送SYN-ACK
     Packet syn_ack_pkt;
     PacketHandler::CreateSynAckPacket(local_seq_, expected_seq_, DEFAULT_WINDOW_SIZE, &syn_ack_pkt);
+    LOG_INFO("RDTSocket", "[SEQ_TRACE] Sending SYN-ACK: seq=" + std::to_string(local_seq_) +
+             " ack=" + std::to_string(expected_seq_));
     SendPacket(&syn_ack_pkt);
 
     // SYN消耗一个序列号
     local_seq_ += 1;
+    LOG_INFO("RDTSocket", "[SEQ_TRACE] After SYN: local_seq_=" + std::to_string(local_seq_));
 
     SetState(STATE_SYN_RECV);
     LOG_INFO("RDTSocket", "SYN-ACK sent");
@@ -675,6 +687,8 @@ void RDTSocket::HandleSynAck(const Packet& packet) {
 
     LOG_INFO("RDTSocket", "SYN-ACK received: seq=" + std::to_string(packet.header.seq) +
              " ack=" + std::to_string(packet.header.ack));
+    LOG_INFO("RDTSocket", "[SEQ_TRACE] Before HandleSynAck: local_seq_=" + std::to_string(local_seq_) +
+             " packet.seq=" + std::to_string(packet.header.seq) + " packet.ack=" + std::to_string(packet.header.ack));
 
     remote_seq_ = packet.header.seq;
     expected_seq_ = remote_seq_ + 1;
@@ -687,6 +701,8 @@ void RDTSocket::HandleSynAck(const Packet& packet) {
     // 发送ACK完成三路握手
     Packet ack_pkt;
     PacketHandler::CreateAckPacket(local_seq_, expected_seq_, DEFAULT_WINDOW_SIZE, &ack_pkt);
+    LOG_INFO("RDTSocket", "[SEQ_TRACE] Sending final ACK: seq=" + std::to_string(local_seq_) +
+             " ack=" + std::to_string(expected_seq_));
     SendPacket(&ack_pkt);
 
     SetState(STATE_ESTABLISHED);
@@ -698,6 +714,17 @@ void RDTSocket::HandleAck(const Packet& packet) {
     if (state_ == STATE_SYN_RECV) {
         // ACK for SYN-ACK
         LOG_INFO("RDTSocket", "ACK received for SYN-ACK");
+        LOG_INFO("RDTSocket", "[SEQ_TRACE] ACK for SYN-ACK: packet.seq=" + std::to_string(packet.header.seq) +
+                 " packet.ack=" + std::to_string(packet.header.ack));
+
+        // 更新期望的发送端序列号
+        expected_seq_ = packet.header.seq;
+        LOG_INFO("RDTSocket", "[SEQ_TRACE] Updated expected_seq_=" + std::to_string(expected_seq_) +
+                 " from sender ACK packet.seq");
+
+        // 初始化接收窗口的期望序列号
+        recv_window_.SetExpectedSeq(expected_seq_);
+
         SetState(STATE_ESTABLISHED);
         start_time_ = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         return;
@@ -734,23 +761,26 @@ void RDTSocket::HandleData(const Packet& packet) {
               " len=" + std::to_string(packet.header.len));
 
     // 添加到接收窗口
-    if (!recv_window_.AddPacket(&packet, packet.header.seq)) {
-        LOG_DEBUG("RDTSocket", "Packet already received or out of window");
-        // 仍然需要发送ACK确认
-    }
+    bool added = recv_window_.AddPacket(&packet, packet.header.seq);
+    LOG_DEBUG("RDTSocket", "AddPacket result: " + std::string(added ? "success" : "failed") +
+              " recv_window.expected=" + std::to_string(recv_window_.GetExpectedSeq()));
 
     // 从接收窗口提取有序的数据
     Packet out_pkt;
     uint32_t out_seq;
     while (recv_window_.GetNextDeliverable(&out_pkt, &out_seq)) {
+        LOG_DEBUG("RDTSocket", "Delivering data: seq=" + std::to_string(out_seq) +
+                  " len=" + std::to_string(out_pkt.header.len));
         // 将数据添加到接收队列
         for (int i = 0; i < out_pkt.header.len; i++) {
             recv_queue_.push(out_pkt.data[i]);
         }
         expected_seq_ = out_seq + out_pkt.header.len;
+        LOG_DEBUG("RDTSocket", "Updated expected_seq_=" + std::to_string(expected_seq_));
     }
 
     // 发送ACK
+    LOG_DEBUG("RDTSocket", "Sending ACK with ack=" + std::to_string(expected_seq_));
     Packet ack_pkt;
     PacketHandler::CreateAckPacket(local_seq_, expected_seq_, recv_window_.GetWindowSize(), &ack_pkt);
     SendPacket(&ack_pkt);

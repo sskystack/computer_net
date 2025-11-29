@@ -48,12 +48,22 @@ int main(int argc, char* argv[]) {
     }
 
     // 绑定到端口
+    std::cerr << "[DEBUG] Before Bind() call" << std::endl;
+
     std::cout << "Binding to port " << listen_port << "..." << std::endl;
-    if (!socket.Bind(listen_port)) {
+    std::cerr << "[DEBUG] About to call Bind()" << std::endl;
+
+    bool bind_result = socket.Bind(listen_port);
+    std::cerr << "[DEBUG] Bind() returned: " << (bind_result ? "true" : "false") << std::endl;
+
+    if (!bind_result) {
         std::cerr << "✗ Error: Failed to bind to port" << std::endl;
         return 1;
     }
+
+    std::cerr << "[DEBUG] After Bind() success check" << std::endl;
     std::cout << "✓ Bound to port " << listen_port << std::endl;
+    std::cerr << "[DEBUG] About to call Listen()" << std::endl;
 
     // 开始监听
     std::cout << "Listening for connections..." << std::endl;
@@ -62,17 +72,21 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    std::cerr << "[DEBUG] After Listen()" << std::endl;
+
     // 接受连接
     std::string remote_addr;
     uint16_t remote_port;
+    std::cerr << "[DEBUG] Before Accept()" << std::endl;
     std::cout << "Waiting for connection..." << std::endl;
     if (!socket.Accept(remote_addr, remote_port)) {
         std::cerr << "✗ Error: Failed to accept connection" << std::endl;
         return 1;
     }
-    std::cout << "✓ Connection accepted from " << remote_addr << ":" << remote_port << std::endl << std::endl;
 
-    // 打开输出文件
+    std::cerr << "[DEBUG] After Accept()" << std::endl;
+    std::cout << "✓ Connection accepted from " << remote_addr << ":" << remote_port << std::endl << std::endl;
+    std::cerr << "[DEBUG] About to open file" << std::endl;
     std::ofstream output(output_file, std::ios::binary);
     if (!output.is_open()) {
         std::cerr << "✗ Error: Cannot open output file: " << output_file << std::endl;

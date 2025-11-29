@@ -192,6 +192,12 @@ public:
      */
     void Clear();
 
+    /**
+     * 设置期望的起始序列号（握手完成后调用）
+     * @param seq 起始序列号
+     */
+    void SetExpectedSeq(uint32_t seq);
+
 private:
     uint16_t window_size_;                              // 窗口大小
     std::map<uint32_t, ReceiveWindowPacket> packets_;   // 存储的数据包
