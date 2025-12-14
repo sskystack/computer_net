@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(g++:*)"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}

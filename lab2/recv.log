@@ -1,116 +1,0 @@
-=== RDT Protocol - Receiver Program ===
-Listen Port: 9100
-Output File: received.bin
-Window Size: 32
-
-[18:33:54.054] [INFO ] [RDTSocket] Initializing with window_size=32
-[18:33:54.057] [INFO ] [CongestionControl] Initialized: mss=1400 cwnd=1400 ssthresh=22400
-[18:33:54.057] [INFO ] [RDTSocket] Initialization successful
-Binding to port 9100...
-[18:33:54.057] [INFO ] [RDTSocket] Bound to port 9100
-✓ Bound to port 9100
-Listening for connections...
-[18:33:54.058] [INFO ] [RDTSocket] Listening for connections
-Waiting for connection...
-[18:33:54.058] [INFO ] [RDTSocket] Receive thread started
-[18:33:54.058] [INFO ] [RDTSocket] Retransmit thread started
-[18:33:56.191] [INFO ] [RDTSocket] SYN received: seq=1815
-[18:33:56.192] [INFO ] [RDTSocket] [SEQ_TRACE] Before HandleSyn: local_seq_=1809 remote_seq=1815
-[18:33:56.192] [INFO ] [RDTSocket] [SEQ_TRACE] Sending SYN-ACK: seq=1809 ack=1816
-[18:33:56.192] [INFO ] [RDTSocket] [SEQ_TRACE] After SYN: local_seq_=1810
-[18:33:56.192] [INFO ] [RDTSocket] SYN-ACK sent
-[18:33:56.192] [INFO ] [RDTSocket] ACK received for SYN-ACK
-[18:33:56.192] [INFO ] [RDTSocket] [SEQ_TRACE] ACK for SYN-ACK: packet.seq=1816 packet.ack=1810
-[18:33:56.192] [INFO ] [RDTSocket] [SEQ_TRACE] Updated expected_seq_=1816 from sender ACK packet.seq
-[18:33:56.192] [INFO ] [ReceiveWindow] Expected seq set to 1816
-[18:33:56.301] [INFO ] [RDTSocket] Connection accepted from 127.0.0.1:58190
-✓ Connection accepted from 127.0.0.1:58190
-
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [CongestionControl] 3 duplicate ACKs received, entering fast retransmit
-[18:33:56.301] [INFO ] [CongestionControl] Entering Fast Recovery: cwnd=2800 ssthresh=22400
-[18:33:56.301] [INFO ] [CongestionControl] Fast Recovery entered: ssthresh=2800 cwnd=7000
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.301] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Receiving file...
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: 26 KB (27584 bytes)[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[Received: 33 KB (34168 bytes)18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.302] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[Received: 40 KB (41168 bytes)18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: 47 KB (48168 bytes)[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: [54 KB (56152 bytes)18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[Received: 61 KB (63152 bytes)18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[Received: 68 KB (69736 bytes)18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.303] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.304] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.304] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.304] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: 73 KB (75378 bytes)[18:33:56.304] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: [80 KB (81920 bytes)18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-Received: 86 KB (88920 bytes)[18:33:56.317] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[Received: 93 KB (95920 bytes)18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [WARN ] [SendWindow] ACK received for unknown sequence: 1810
-[18:33:56.318] [INFO ] [RDTSocket] FIN received: seq=104216
-Received: 100 KB (102400 bytes)
-Connection closed by remote host
-
-
-Closing connection...
-[18:34:01.321] [INFO ] [RDTSocket] Closing connection
-[18:34:01.335] [INFO ] [RDTSocket] Retransmit thread stopped

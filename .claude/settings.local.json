@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(certutil -hashfile:*)",
+      "Bash(g++:*)",
+      "Bash(start \"l2\\receiver.exe\" \"9999\" \"l2\\received_helloworld_test.txt\")",
+      "Bash(\"D:\\study\\computer_net\\l2\\sender.exe\" \"D:\\study\\computer_net\\l2\\testfile\\helloworld.txt\" \"127.0.0.1\" \"9999\")"
+    ]
+  }
+}
