@@ -1,4 +1,4 @@
-# 可靠传输协议实现实验报告
+﻿# 可靠传输协议实现实验报告
 
 ## 一、实验需求
 
@@ -87,7 +87,7 @@ Client                              Server
   |                                   |
   |-------- ACK (seq=0, ack=100) ---> |
   |                                   |
-  |-------- 连接建立 --------------- |
+  |-------- 连接建立 ----------------- |
 ```
 
 #### 连接关闭流程（四次挥手）
@@ -97,9 +97,9 @@ Sender                              Receiver
   |                                   |
   |----------- FIN (seq=n) ---------->|
   |                                   |
-  |<---------- FIN-ACK (ack=n+1) ----|
+  |<---------- FIN-ACK (ack=n+1) -----|
   |                                   |
-  |-------- 关闭 ------------------- |
+  |-------- 关闭 --------------------- |
 ```
 
 ### 2.4 差错检测
@@ -158,13 +158,12 @@ recv_base <= seq_num < recv_base + WINDOW_SIZE × DATA_SIZE
 
 ### 2.7 拥塞控制（RENO算法）
 
-#### 三个状态
+#### 两个阶段
 
 | 状态 | 说明 | cwnd增长策略 |
 |------|------|------------|
 | SLOW_START | 慢启动 | 每个ACK增加1，指数增长 |
-| CONGESTION_AVOIDANCE | 拥塞避免 | 每RTT增加1，线性增长 |
-| FAST_RECOVERY | 快速恢复 | 由重复ACK触发 |
+| CONGESTION_AVOIDANCE | 拥塞避免 | 约每RTT增加1，线性增长（通过ACK累加实现） |
 
 #### 状态转移
 
@@ -173,418 +172,388 @@ recv_base <= seq_num < recv_base + WINDOW_SIZE × DATA_SIZE
 
 SLOW_START:
   - 收到新ACK: cwnd++, 如果cwnd>=ssthresh则转到CONGESTION_AVOIDANCE
-  - 超时: ssthresh=cwnd/2, cwnd=1, 保持SLOW_START
-
-CONGESTION_AVOIDANCE:
-  - 收到新ACK: cwnd++
+  - 3个重复ACK: 触发快速重传与窗口调整（ssthresh=cwnd/2, cwnd=ssthresh+3）
   - 超时: ssthresh=cwnd/2, cwnd=1, 转到SLOW_START
 
-FAST_RECOVERY:
-  - 暂未实现（当前版本）
+CONGESTION_AVOIDANCE:
+  - 收到新ACK: 通过ACK累加（约每RTT+1）更新cwnd
+  - 3个重复ACK: 触发快速重传与窗口调整（ssthresh=cwnd/2, cwnd=ssthresh+3）
+  - 超时: ssthresh=cwnd/2, cwnd=1, 转到SLOW_START
+
 ```
 
 ---
 
 ## 三、实现方法说明
 
-### 3.1 项目结构和编程语言选择
+本节按照实验要求的功能点（连接管理、差错检测、确认重传、流量控制、拥塞控制）对代码实现进行说明，并给出关键代码片段。
 
-本项目采用C++语言实现，使用Windows原生的Winsock2 API进行网络编程。整个项目分为以下主要文件：
+### 3.1 整体架构与代码结构
 
-`protocol.h` 文件定义了协议的所有常量和结构体，包括数据包头的格式、包类型的枚举、窗口大小、超时时间等基础参数。其中最重要的是`PacketHeader`结构体，它定义了每个网络包的头部格式，包括序列号、确认号、包类型、数据长度等字段。同时这个文件中还包含了校验和计算函数`calculateChecksum`，使用16位反码和算法实现差错检测。
+项目采用 C++ 实现，在 Windows 平台使用 Winsock2 的基础 Socket API 完成 UDP 通信（如 `socket/bind/sendto/recvfrom/setsockopt/closesocket`），未使用 MFC 的 `CSocket` 等封装类。
 
-`rdt_socket.h` 和 `rdt_socket.cpp` 实现了RdtSocket类，这是整个协议的核心。这个类封装了所有与可靠数据传输相关的功能，包括连接管理、数据发送接收、窗口管理、重传控制和拥塞控制。
+代码分为三层：
 
-`sender.cpp` 和 `receiver.cpp` 分别是发送端和接收端的应用程序。发送端负责读取文件、建立连接、调用RdtSocket的sendFile函数进行文件传输。接收端负责监听端口、接受连接、调用RdtSocket的recvFile函数接收文件。
+1. **协议定义层**：`protocol.h`（包格式、常量、校验和）。
+2. **可靠传输层**：`rdt_socket.h/.cpp`（`RdtSocket`，实现连接管理、可靠传输、窗口与拥塞控制）。
+3. **应用层**：`sender.cpp`/`receiver.cpp`（参数解析 + 调用 `RdtSocket` 接口完成文件传输）。
 
-### 3.2 核心类设计详解
-
-RdtSocket类包含了以下几个核心部分。首先是Socket相关的成员变量，包括套接字句柄`sock`、本地地址结构`local_addr`和远端地址结构`remote_addr`。这些是与操作系统网络接口交互的基础。
-
-其次是序列号管理部分。`local_seq`表示本地要发送的下一个包的序列号，`remote_seq`表示从远端收到的序列号，`recv_base`表示接收端期望接收的下一个序列号。正确维护这些序列号是实现可靠传输的关键。
-
-第三部分是发送窗口管理。`send_base`表示已确认的最高序列号，`send_window`是一个map容器，存储了所有已发送但未确认的包及其元数据（如发送时间、重传次数等）。这使得我们能够实现滑动窗口和超时重传。
-
-第四部分是接收缓冲区，使用`recv_buffer`这个map来存储接收到的乱序包。当数据包以非顺序到达时，我们先将它们存储在缓冲区中，然后等待缺失的包到达后再按顺序交付给应用层。这是实现选择确认的基础。
-
-最后是拥塞控制部分，包括`cong_state`表示当前拥塞控制状态、`cwnd`表示拥塞窗口大小、`ssthresh`表示慢启动阈值等。
-
-### 3.3 关键实现细节详解
-
-#### 1. 校验和计算的正确实现
-
-校验和是差错检测的核心。我们采用16位反码和（Internet Checksum）算法，这是TCP/IP协议族中广泛采用的校验和方法。在实现过程中遇到了一个关键问题：发送端和接收端的校验和计算逻辑必须完全一致。
-
-具体来说，在发送数据时，我们首先将checksum字段清零，然后计算包头（除checksum字段外的部分）的校验和，再计算数据部分的校验和，最后将两个校验和相加得到最终的校验和值。这个值被填充到checksum字段中。
-
-在接收数据时，我们必须采用相同的方法来验证校验和。首先保存接收到的checksum值，然后将包头中的checksum字段清零，再用同样的方式计算校验和。如果计算出的校验和与接收到的checksum相同，说明包没有被损坏；否则，这个包应该被丢弃，等待发送端的重传。
-
-这种方法的关键在于清零（clearing）。如果接收端直接对包含非零checksum的包头进行计算，就会得到不同的结果，从而导致正常的包被错误地判定为有错误。通过清零这一步骤，我们确保发送端和接收端的计算逻辑完全相同。
+应用层调用链：
 
 ```cpp
-// 发送时的校验和计算
-data_pkt.header.checksum = 0;  // 先清零
-uint32_t header_cs = calculateChecksum(&data_pkt.header, sizeof(header) - 4);
-uint32_t data_cs = calculateChecksum(data_pkt.data, data_len);
-data_pkt.header.checksum = (header_cs + data_cs) & 0xFFFF;
-
-// 接收时的校验和验证
-uint32_t received_cs = data_pkt.header.checksum;  // 保存接收到的值
-data_pkt.header.checksum = 0;  // 清零后再计算
-uint32_t header_cs = calculateChecksum(&data_pkt.header, sizeof(header) - 4);
-uint32_t data_cs = calculateChecksum(data_pkt.data, data_len);
-uint32_t expected_cs = (header_cs + data_cs) & 0xFFFF;
-if (expected_cs != received_cs) {
-    // 包损坏，丢弃它
-}
+// sender.cpp：bind -> connect -> sendFile -> close
+RdtSocket sender;
+sender.bind("127.0.0.1", 0);
+sender.connect(remote_ip, remote_port);
+sender.sendFile(file_path);
+sender.close();
 ```
 
-#### 2. 连接建立过程详解
+```cpp
+// receiver.cpp：listen -> accept -> recvFile -> close
+RdtSocket receiver;
+receiver.listen(local_port);
+RdtSocket* client = receiver.accept();
+client->recvFile(save_path);
+client->close();
+delete client;
+```
 
-连接建立采用三次握手的方式，这确保了双方都准备好进行数据传输。
+### 3.2 连接管理：建立连接、关闭连接与异常处理
 
-在发送端，首先创建一个SYN（synchronization）包，设置其包类型为PKT_SYN，序列号为0（或任意初始值）。计算好这个包的校验和后，通过sendPacket函数发送出去。然后发送端进入等待状态，期望接收一个SYN-ACK（synchronization acknowledgement）包。
+#### 3.2.1 建立连接（三次握手）
 
-当发送端接收到SYN-ACK包时，它从这个包中提取远端的序列号，这个序列号将被用作后续ACK包的确认号。然后发送端构造一个最终的ACK包，其中包含了自己的序列号和对远端序列号的确认，发送出去后连接就建立成功了。
+在 UDP 之上模拟面向连接：客户端发送 `SYN`，服务端回复 `SYN-ACK`，客户端回复 `ACK`。
 
-在接收端，首先调用listen函数在指定端口监听。当有连接请求到达时，接收端接收到SYN包，提取其中的序列号，然后构造一个SYN-ACK包作为应答。这个SYN-ACK包同时确认了接收到的SYN（通过ack_num字段）并告诉发送端自己的序列号（通过seq_num字段）。接收端发送完SYN-ACK后，进入等待最终ACK的状态。当收到ACK包后，接收端也完成连接建立。
-
-这个三次握手的过程确保了以下几点：首先，发送端知道接收端存在并准备好接收数据；其次，接收端知道发送端存在并准备好发送数据；第三，双方交换了各自的初始序列号，这对后续的数据传输至关重要。
-
-#### 3. 文件发送流程详解
-
-文件发送是一个相对复杂的过程，需要在发送窗口大小限制、超时重传和拥塞控制之间取得平衡。
-
-发送端首先打开要发送的文件，获取其大小。然后进入主循环，每次循环尝试从文件中读取一个完整包的数据（最多960字节）。但在读取和发送数据之前，我们需要检查发送窗口是否还有空间。
-
-发送窗口的大小由两个因素限制：一是固定的WINDOW_SIZE（10个包），二是拥塞控制的cwnd。实际可用的窗口大小是这两者的最小值。如果当前发送窗口中的包数已经达到了限制，发送端就不能继续发送新的包，而是需要先接收ACK来释放窗口空间。
-
-在等待ACK的过程中，发送端会检查是否有ACK包到达。如果有，就处理这个ACK，更新send_base，滑动发送窗口。同时，发送端还需要检查是否有包超时了。如果有，就对这些包进行重传。超时时间设为500毫秒。
-
-当发送窗口有空间时，发送端从文件中读取数据，填充到数据包中。如果是文件的第一个包，还要在包头中填充文件名和文件大小信息。然后计算包的校验和，将包加入发送窗口（记录发送时间），最后通过sendPacket函数发送出去。
-
-这个过程一直持续到整个文件都被发送完为止。注意，"发送完"不等于"接收完全"。发送端继续循环，接收ACK，直到所有的包都被确认。
-
-#### 4. 文件接收流程详解
-
-接收端的工作是镜像对称的，但也有其独特的复杂性。
-
-接收端在建立连接后，进入文件接收循环。每次循环都尝试接收一个数据包。接收到包后，首先验证其校验和。如果校验和不匹配，说明包在传输过程中被损坏了，这个包应该被丢弃。
-
-如果校验和通过，接收端检查包的序列号是否在接收窗口内。接收窗口由recv_base和WINDOW_SIZE决定。如果序列号在窗口内，包是有效的；否则，这个包应该被丢弃或已经被接收过了。
-
-对于接收窗口内的有效包，接收端首先检查是否是第一个数据包。如果是，就从包头中提取文件大小和文件名信息。然后将包存储在接收缓冲区recv_buffer中，其中key是包的序列号。
-
-接收缓冲区的存在允许包以任意顺序到达。我们使用一个while循环来检查是否收到了recv_base对应的包。如果收到了，我们将它的数据写入文件，更新recv_base（跳过当前包的大小），然后从缓冲区删除这个包。这个过程一直持续到recv_base处没有包可用为止。
-
-每次接收到有效的数据包后，接收端都应该发送一个ACK包来确认。ACK包的ack_num字段设为recv_base，这告诉发送端"我已经收到了所有序列号小于recv_base的包"。
-
-这个过程一直持续到接收到的数据总量达到文件大小为止。接收端检查received是否大于等于total_size，如果是，就关闭文件并返回成功。
-
-#### 5. 拥塞控制的RENO算法
-
-拥塞控制是现代TCP最复杂的部分之一。我们实现了RENO算法的简化版本，它包括两个主要的状态：慢启动和拥塞避免。
-
-拥塞控制的核心思想是动态调整发送速率以适应网络状况。我们用cwnd（拥塞窗口）这个变量来表示可以同时发送多少个包。初始时，cwnd被设置为1，这意味着发送端一次只能发送一个包。
-
-在慢启动阶段，每次收到一个新的ACK（确认新的数据），cwnd就增加1。这导致cwnd以指数增长：第一次收到ACK时cwnd变为2，第二次变为4，以此类推。这个指数增长允许发送端快速增加吞吐量，直到遇到拥塞或达到ssthresh（慢启动阈值）。
-
-当cwnd达到或超过ssthresh时，拥塞控制进入拥塞避免阶段。在这个阶段，cwnd的增长速度减缓为线性增长——每个RTT（往返时间）增加1。这使得发送端更加谨慎地增加吞吐量，避免快速打满网络。
-
-当发送端检测到包丢失（通过超时机制），它认为网络已经拥塞了，需要采取紧急措施。此时，ssthresh被设置为当前cwnd的一半，cwnd被重置为1，拥塞控制回到慢启动阶段。这种大幅度的降速可以快速减少网络负荷，避免进一步的拥塞。
-
-这个算法的巧妙之处在于它的自适应性。在网络状况良好时，它能够迅速增加吞吐量；在网络拥塞时，它能够快速降低吞吐量。通过这种动态的调整，RENO能够在不同的网络条件下都保持较好的性能。
-
-我们在代码中实现了onNewAck和onTimeout两个函数来处理这两种情况。onNewAck函数在收到新的确认时被调用，它检查当前的拥塞控制状态，相应地更新cwnd。onTimeout函数在检测到包超时时被调用，它执行拥塞的"快速恢复"，将cwnd快速降低。
+发送端 `connect()` 的核心逻辑：
 
 ```cpp
-void onNewAck() {
-    if (cong_state == SLOW_START) {
-        cwnd++;  // 指数增长
-        if (cwnd >= ssthresh) {
-            cong_state = CONGESTION_AVOIDANCE;  // 切换到拥塞避免
-        }
-    } else if (cong_state == CONGESTION_AVOIDANCE) {
-        cwnd++;  // 线性增长（每RTT增加1）
+Packet syn_pkt;
+syn_pkt.header.packet_type = PKT_SYN;
+syn_pkt.header.seq_num = local_seq;
+syn_pkt.header.data_length = 0;
+syn_pkt.header.checksum = 0;
+syn_pkt.header.checksum = calculateChecksum(&syn_pkt.header,
+    sizeof(syn_pkt.header) - sizeof(syn_pkt.header.checksum));
+sendPacket(syn_pkt);
+
+Packet ack_pkt;
+while (true) {
+    if (recvPacket(ack_pkt, 100) && ack_pkt.header.packet_type == PKT_SYN_ACK) {
+        remote_seq = ack_pkt.header.seq_num;
+        recv_base = remote_seq;
+
+        Packet final_ack;
+        final_ack.header.packet_type = PKT_ACK;
+        final_ack.header.seq_num = local_seq;
+        final_ack.header.ack_num = remote_seq;
+        final_ack.header.checksum = 0;
+        final_ack.header.checksum = calculateChecksum(&final_ack.header,
+            sizeof(final_ack.header) - sizeof(final_ack.header.checksum));
+
+        if (sendPacket(final_ack)) { connected = true; return true; }
     }
-    dup_ack_count = 0;
-}
-
-void onTimeout() {
-    ssthresh = (cwnd / 2 > 0) ? cwnd / 2 : 1;  // 设置新的阈值
-    cwnd = 1;  // 重置窗口
-    cong_state = SLOW_START;  // 回到慢启动
+    // 超过 CONNECT_TIMEOUT_MS 则连接失败
 }
 ```
 
-通过这种方式，我们实现了一个能够自动适应网络条件的传输协议。即使在网络质量下降时，协议也能够通过降低发送速率来维持可靠传输。
+接收端 `accept()` 的核心逻辑：
 
-#### 6. 确认重传机制：流水线方式与选择确认
+```cpp
+recvfrom(sock, (char*)&syn_pkt, sizeof(syn_pkt), 0, (sockaddr*)&remote_addr, &addr_len);
+if (syn_pkt.header.packet_type != PKT_SYN) return nullptr;
 
-确认重传是可靠数据传输的核心机制。在我们的实现中，采用了流水线方式（pipelining）和选择确认（selective acknowledgment）的组合。
+RdtSocket* new_sock = new RdtSocket();
+new_sock->sock = this->sock;
+new_sock->remote_addr = this->remote_addr;
+new_sock->local_addr = this->local_addr;
+new_sock->remote_seq = syn_pkt.header.seq_num;
+new_sock->recv_base = syn_pkt.header.seq_num;
+new_sock->local_seq = 100;
 
-传统的停-等协议（stop-and-wait）在发送一个包后，必须等待其ACK才能发送下一个包。这会导致传输效率很低。相比之下，流水线方式允许发送端在获得ACK之前就发送多个包，这大大提高了网络利用率。
+Packet syn_ack;
+syn_ack.header.packet_type = PKT_SYN_ACK;
+syn_ack.header.seq_num = new_sock->local_seq;
+syn_ack.header.ack_num = new_sock->remote_seq;
+syn_ack.header.checksum = 0;
+syn_ack.header.checksum = calculateChecksum(&syn_ack.header,
+    sizeof(syn_ack.header) - sizeof(syn_ack.header.checksum));
+new_sock->sendPacket(syn_ack);
 
-在我们的实现中，`send_window`是一个map容器，存储了所有已发送但未被确认的包。每个包在发送时被加入窗口，其中记录了包的内容、发送时间和重传次数。
+Packet ack_pkt;
+if (new_sock->recvPacket(ack_pkt, CONNECT_TIMEOUT_MS) && ack_pkt.header.packet_type == PKT_ACK) {
+    new_sock->connected = true;
+    return new_sock;
+}
+```
+
+#### 3.2.2 关闭连接（FIN/FIN-ACK）
+
+文件传输结束后由发送端主动发 `FIN`，接收端收到后回 `FIN-ACK`：
+
+```cpp
+Packet fin;
+fin.header.packet_type = PKT_FIN;
+fin.header.seq_num = seq;
+fin.header.ack_num = recv_base;
+fin.header.checksum = 0;
+fin.header.checksum = calculateChecksum(&fin.header,
+    sizeof(fin.header) - sizeof(fin.header.checksum));
+sendPacket(fin);
+
+Packet fin_ack;
+if (recvPacket(fin_ack, CONNECT_TIMEOUT_MS) && fin_ack.header.packet_type == PKT_FIN_ACK) {
+    log("[SEND] Connection closed");
+}
+connected = false;
+```
+
+```cpp
+// recvFile() 中收到 FIN 的处理
+Packet fin_ack;
+fin_ack.header.packet_type = PKT_FIN_ACK;
+fin_ack.header.seq_num = local_seq;
+fin_ack.header.ack_num = data_pkt.header.seq_num;
+fin_ack.header.checksum = 0;
+fin_ack.header.checksum = calculateChecksum(&fin_ack.header,
+    sizeof(fin_ack.header) - sizeof(fin_ack.header.checksum));
+sendPacket(fin_ack);
+connected = false;
+```
+
+#### 3.2.3 异常处理（收包超时）
+
+收包超时通过 `SO_RCVTIMEO` 实现，`recvPacket()` 超时返回 false，上层可据此重试/重传：
+
+```cpp
+int timeout = timeout_ms;
+setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+int n = recvfrom(sock, (char*)&pkt, sizeof(Packet), 0, (sockaddr*)&remote_addr, &addr_len);
+return (n != SOCKET_ERROR);
+```
+
+### 3.3 差错检测：校验和（Checksum）
+
+校验和函数定义在 `protocol.h`，使用 16 位反码和校验的实现方式（将所有字节相加、折叠进位、取反）：
+
+```cpp
+inline uint32_t calculateChecksum(const void* buffer, size_t length) {
+    uint32_t sum = 0;
+    const uint8_t* data = (const uint8_t*)buffer;
+    for (size_t i = 0; i < length; i++) sum += data[i];
+    while (sum >> 16) sum = (sum & 0xFFFF) + (sum >> 16);
+    return (~sum) & 0xFFFF;
+}
+```
+
+发送端对 `header(不含checksum字段) + data` 分别计算并合成 checksum：
+
+```cpp
+data_pkt.header.checksum = 0;
+uint32_t header_checksum =
+    calculateChecksum(&data_pkt.header, sizeof(data_pkt.header) - sizeof(data_pkt.header.checksum));
+uint32_t data_checksum = calculateChecksum(data_pkt.data, to_send);
+data_pkt.header.checksum = (header_checksum + data_checksum) & 0xFFFF;
+```
+
+接收端复算并比对，不一致则丢弃该包（依赖后续重传）：
+
+```cpp
+uint32_t received_checksum = data_pkt.header.checksum;
+data_pkt.header.checksum = 0;
+uint32_t header_checksum =
+    calculateChecksum(&data_pkt.header, sizeof(data_pkt.header) - sizeof(data_pkt.header.checksum));
+uint32_t data_checksum = calculateChecksum(data_pkt.data, data_pkt.header.data_length);
+uint32_t expected = (header_checksum + data_checksum) & 0xFFFF;
+if (expected != received_checksum) { continue; }
+```
+
+### 3.4 确认重传：流水线发送 + 重传策略
+
+#### 3.4.1 序列号与 ACK 语义
+
+本实现采用“字节序号”作为 `seq_num`：每发送 `to_send` 字节就 `seq += to_send`。接收端回 `ACK(ack_num=recv_base)`，表示累计确认到 `recv_base`（下一段期望接收的字节序号）。
+
+#### 3.4.2 流水线（发送窗口）
+
+发送端用 `send_window` 保存所有“已发送但未确认”的数据包（用于滑窗与重传）：
 
 ```cpp
 struct SendWindowEntry {
-    Packet packet;                          // 完整的包
-    std::chrono::steady_clock::time_point send_time;  // 发送时间戳
-    int retransmit_count;                   // 重传次数
+    Packet packet;
+    std::chrono::steady_clock::time_point send_time;
+    uint32_t retransmit_count;
 };
-
-// 发送窗口
-std::map<uint32_t, SendWindowEntry> send_window;  // key是序列号
-std::set<uint32_t> acked_packets;           // 已确认的包的序列号
+std::map<uint32_t, SendWindowEntry> send_window;
 ```
 
-当发送端发送一个数据包时，它被立即加入发送窗口：
+流水线技术是现代协议的核心，它允许发送端在等待接收端的 ACK 期间继续发送新的数据包，而不必等待每个包都被确认后才能继续。这大幅提高了网络利用率，特别是在网络延迟较高的场景下。本实现通过维护一个"发送窗口"来实现流水线。发送窗口用 `send_window` 这个 map 数据结构来保存所有"已发送但未确认"的数据包。map 的 key 是数据包的序列号，value 是一个 `SendWindowEntry` 结构体，包含了完整的包内容、发送时间戳和重传次数计数。发送数据时，发送端首先检查是否可以继续发送（通过 `canSendPacket()` 判断窗口是否有空间），如果可以，就立即将数据包加入发送窗口并通过 UDP 发送出去。这个过程中，时间戳和重传次数都被初始化，为后续的超时检测和重传计数做好准备。
 
 ```cpp
-// 加入发送窗口
 SendWindowEntry entry;
 entry.packet = data_pkt;
 entry.send_time = std::chrono::steady_clock::now();
 entry.retransmit_count = 0;
-send_window[data_pkt.header.seq_num] = entry;
-
-// 发送包到网络
+send_window[seq] = entry;
 sendPacket(data_pkt);
-
-// 更新序列号用于下一个包
-sent += to_send;
-seq += to_send;
 ```
 
-流水线方式的关键是**并发发送多个包而不等待ACK**。发送端在一个循环中做两件事情：首先检查是否可以发送新的包（窗口是否有空间），如果可以就读取文件数据并发送；其次接收来自接收端的ACK并处理。
+发送窗口的大小受到两个限制：一个是固定的流量控制窗口 `WINDOW_SIZE`（通常为 10），另一个是动态的拥塞控制窗口 `cwnd`。发送端取两者的最小值作为有效发送窗口大小，这样既保证了接收端不会被过多数据淹没，也避免了在网络拥塞时继续高速发送。
+
+#### 3.4.3 ACK 处理：滑窗、重复 ACK 与快速重传
+
+当接收端收到完整的数据并写入文件后，它会回复一个 ACK 包。ACK 包中的 `ack_num` 字段表示接收端期望接收的下一个字节的序列号，也就是说，所有 `seq_num < ack_num` 的数据都已经被正确接收了。这被称为"累计确认"。在发送端，对 ACK 的处理分为两种情况：新的 ACK 和重复的 ACK。新 ACK（`ack_seq > last_ack_seq`）到达时，发送端执行"滑动窗口"操作。这个操作的含义是：删除所有 `seq < ack_seq` 的在途包，因为这些包已经被接收端确认了，不再需要保存。同时将 `last_ack_seq` 更新为最新的确认序号。这样做之后，发送窗口就向前移动了，发送端可以继续发送新的数据包。
 
 ```cpp
-while (sent < file_size) {
-    // 1. 检查窗口是否有空间（最多WINDOW_SIZE个包）
-    if (send_window.size() < WINDOW_SIZE && send_window.size() < effective_window) {
-        // 可以发送新包
-        // 读取数据，构造包，计算校验和
-        // 加入发送窗口
-        // 发送包
-    } else {
-        // 2. 窗口满了，需要接收ACK来释放空间
-        Packet ack_pkt;
-        if (recvPacket(ack_pkt, 50)) {
-            if (ack_pkt.header.packet_type == PKT_ACK) {
-                processAck(ack_pkt.header.ack_num);
-            }
-        }
-    }
-    
-    // 3. 检查超时，进行重传
-    retransmitPackets();
-}
-```
-
-选择确认是指接收端可以独立地确认任意范围内的包，而不仅仅是连续的序列号。在我们的实现中，ACK包的`ack_num`字段表示接收端已经收到的最高连续序列号。即使中间有缺失的包，接收端也会发送这个ACK。
-
-当发送端收到一个ACK时，它通过`processAck`函数处理：
-
-```cpp
-void processAck(uint32_t ack_num) {
-    // ack_num表示接收端已确认收到的最高连续序列号
-    // 删除所有序列号<=ack_num的包
-    
+void slideWindow(uint32_t ack_seq) {
     auto it = send_window.begin();
-    while (it != send_window.end()) {
-        if (it->first <= ack_num) {
-            // 这个包已被确认，可以从窗口删除
-            acked_packets.insert(it->first);
-            send_base = std::max(send_base, it->first);
-            
-            // 调用拥塞控制的onNewAck回调
-            onNewAck();
-            
-            it = send_window.erase(it);
-        } else {
-            break;  // 后续的包还未被确认
+    while (it != send_window.end() && it->first < ack_seq) {
+        it = send_window.erase(it);
+    }
+}
+```
+
+重复 ACK（`ack_seq == last_ack_seq`）意味着接收端连续多次收到相同的 ACK，这通常表示某个中间的包已经丢失。当累计到 3 个重复 ACK 时（即同一个序列号被确认了 4 次总计），TCP Reno 采用"快速重传"机制：不等待 500ms 的超时，而是立即重传"最早未确认包"。这个设计基于以下观察：如果接收端连续发送相同的 ACK，说明它在期待某个特定的数据包，而后续数据已经被正确接收。这比等待超时更快、更高效地恢复网络传输。
+
+```cpp
+} else if (ack_seq == last_ack_seq) {
+    onDuplicateAck();
+    if (dup_ack_count == 3) {
+        if (!send_window.empty()) {
+            auto first_unacked = send_window.begin();
+            sendPacket(first_unacked->second.packet);
+            first_unacked->second.send_time = std::chrono::steady_clock::now();
+            first_unacked->second.retransmit_count++;
         }
     }
 }
 ```
 
-超时重传是实现可靠性的另一关键机制。发送端定期检查发送窗口中的包是否超时。如果一个包在500毫秒内没有收到ACK，就需要重传它。
+这个快速重传机制的关键优势在于：它能够在**网络状况相对较好**但出现偶发丢包的场景中，迅速恢复传输，而不必等待完整的 RTO（重传超时）。相比之下，如果某个包丢失且接收端没有后续数据要发送，就不会产生重复 ACK；在这种情况下，只能依靠超时机制来检测丢包。
+
+#### 3.4.4 超时重传
+
+即使实现了快速重传机制，超时重传仍然是必不可少的。快速重传依赖于接收端的反馈（重复 ACK），但如果一个数据包丢失且接收端之后没有任何数据包要发送（即没有"触发"重复 ACK 的机制），那么发送端就无法通过重复 ACK 来检测这个丢失。在这种情况下，只有超时机制能够可靠地检测到丢包。本实现使用 `TIMEOUT_MS=500` 作为重传超时阈值。每当检测到发送窗口内某个包的发送时间距离当前时刻超过 500ms 时，就认为该包已经丢失，需要立即重传。重传时更新该包的发送时间戳，使其重新开始超时计时。同时，超时事件触发了拥塞控制的"退避"逻辑（`onTimeout()`），在这种情况下，网络状况可能更加恶劣，应该更激进地降低拥塞窗口。
 
 ```cpp
-void retransmitPackets() {
-    auto now = std::chrono::steady_clock::now();
-    
-    for (auto& entry : send_window) {
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - entry.second.send_time);
-        
-        // 超过500ms未被确认，需要重传
-        if (elapsed.count() > RETRANSMIT_TIMEOUT_MS) {
-            // 重传这个包
-            sendPacket(entry.second.packet);
-            
-            // 更新发送时间和重传计数
-            entry.second.send_time = now;
-            entry.second.retransmit_count++;
-            
-            // 检测过度重传（重传次数超过10次）
-            if (entry.second.retransmit_count > 10) {
-                printf("[ERROR] Packet seq=%u retransmitted too many times\n", 
-                       entry.first);
-                return false;
-            }
-            
-            // 超时事件触发拥塞控制的onTimeout回调
-            onTimeout();
-        }
+if (elapsed > TIMEOUT_MS) {
+    sendPacket(entry.second.packet);
+    onTimeout();
+}
+```
+
+在 `send_window` 中记录 `retransmit_count` 对诊断和统计也有重要意义。如果某个包被重传了许多次仍然超时，这强烈表明网络状况极差，或者远端主机可能已经离线。本实现可以在将来扩展为：当 `retransmit_count` 超过某个阈值（比如 5 次）时，主动放弃该传输并报错，而不是无限重试。
+
+此外，超时重传与快速重传的区别在于：
+- **快速重传**：发生在网络有"轻微丢包"的情况下，接收端仍在反馈，只是某个包丢失了。恢复相对温和，使用快速恢复（cwnd = ssthresh + 3）。
+- **超时重传**：发生在网络"严重恶化"或"甚至可能断连"的情况下，接收端长时间没有任何反馈。恢复激进，重新进入慢启动（cwnd = 1）。
+
+> 说明：接收端能够缓存乱序包（选择性接收），但 ACK 字段为累计确认（未实现 TCP SACK 的位图/区间回传）。
+
+### 3.5 流量控制：固定大小发送/接收窗口
+
+流量控制的目的是防止发送端过快发送数据导致接收端缓冲区溢出。本协议采用固定窗口大小的设计：无论网络状况如何，接收端的窗口始终为 `WINDOW_SIZE=10` 个数据包（即 `10 * 960 = 9600` 字节）。这个值由协议级别固定，不像拥塞窗口那样动态变化。固定窗口的优点是实现简单、内存需求可预测；缺点是不能根据接收端处理能力进行动态调整。本设计中，接收端假设有足够的缓冲区，因此不实现广告窗口（Advertised Window）的减小。
+
+协议定义固定窗口 `WINDOW_SIZE=10`：
+
+```cpp
+const uint16_t WINDOW_SIZE = 10;
+const uint16_t DATA_SIZE = PACKET_SIZE - 64;
+```
+
+接收端只接收位于 `[recv_base, recv_base + WINDOW_SIZE * DATA_SIZE)` 范围内的数据包。其中 `recv_base` 是已经成功写入文件的字节位置，代表了接收窗口的左边界。检查逻辑如下：
+
+```cpp
+bool isPacketInWindow(uint32_t seq) {
+    return seq >= recv_base && seq < recv_base + WINDOW_SIZE * DATA_SIZE;
+}
+```
+
+超出这个范围的包（无论是太新还是太旧）都会被丢弃或忽略。对于位于窗口内但序列号不连续的包（即乱序包），接收端使用 `recv_buffer` 这个 `std::map` 结构进行缓存。这个设计允许接收端灵活地接收乱序包，并在后续包到达时将它们组织成连续的序列。当缓冲区中积累了足够的连续包时，接收端就可以安全地将这些数据写入文件。
+
+```cpp
+recv_buffer[data_pkt.header.seq_num] = data_pkt;
+while (recv_buffer.find(recv_base) != recv_buffer.end()) {
+    Packet& pkt = recv_buffer[recv_base];
+    file.write(pkt.data, pkt.header.data_length);
+    received += pkt.header.data_length;
+    recv_buffer.erase(recv_base);
+    recv_base += pkt.header.data_length;
+}
+sendAck(recv_base);
+```
+
+这段代码的逻辑是：不断检查 `recv_buffer` 中是否存在序列号为 `recv_base` 的包（即我们期望的下一个包）。如果存在，就把它写入文件，更新 `recv_base`，然后删除这个包。这个循环会一直执行，直到遇到缺失的包为止。每次处理完乱序包后，都会发送一个 ACK 告知发送端当前的接收进度。这种设计保证了文件的顺序性和完整性，同时充分利用了接收窗口的容量，提高了网络传输效率。
+
+### 3.6 拥塞控制：Reno（慢启动 / 拥塞避免 ）
+
+拥塞控制是 TCP 协议中最精妙的设计之一。它的目标是在尽可能高效地利用网络带宽的同时，避免让网络过载。本实现采用 TCP Reno 算法，这是目前互联网上被广泛使用的拥塞控制方案。与固定的流量控制窗口不同，拥塞窗口（`cwnd`）会根据网络反馈动态调整，从而避免突然向网络注入大量流量。
+
+发送端有效发送窗口取 `min(WINDOW_SIZE, cwnd)`，同时受固定窗口与拥塞窗口共同限制：
+
+```cpp
+uint32_t getEffectiveWindow() {
+    return std::min((uint32_t)WINDOW_SIZE, cwnd);
+}
+```
+
+这意味着实际能够在网络上的数据包数量受两个因素约束：一是接收端的处理能力（`WINDOW_SIZE=10`），二是网络的估计拥塞情况（`cwnd`）。两者取最小值可以确保既不会压垮接收端，也不会让网络过载。
+
+#### 3.6.1 慢启动与拥塞避免
+
+Reno 算法分为两个增长阶段：**慢启动**和**拥塞避免**，以及两个减退阶段：**快速恢复**和**超时退避**。
+
+**慢启动**阶段从 `cwnd=1` 开始，每收到一个新 ACK 就执行 `cwnd++`。这看起来增长很慢，但实际上是**指数级增长**：如果没有丢包，第一个 RTT 收到 1 个 ACK，`cwnd` 变为 2；第二个 RTT 收到 2 个 ACK，`cwnd` 变为 4；第三个 RTT 收到 4 个 ACK，`cwnd` 变为 8。这种增长方式的好处是，初期保守（不会立即塞爆网络），但如果网络状况良好就能快速探测出带宽。
+
+**拥塞避免**阶段的目标是"每个 RTT 增加 1 MSS（最大报文段长度）"，这是一个线性增长。但在实现时有个数学难点：`cwnd` 是整数，而"每 RTT 增加 1"的表述意思是，在一个 RTT 内收到的所有 ACK 加起来应该导致 `cwnd` 增加 1，即"每个 ACK 增加 1/cwnd"。由于涉及分数运算，简单的整数除法会损失精度（整数除法 1/cwnd 总是 0）。本实现采用**累加器模式**来解决这个问题：
+
+```cpp
+void onNewAck() {
+    dup_ack_count = 0;
+    if (cong_state == SLOW_START) {
+        cwnd++;
+        if (cwnd >= ssthresh) cong_state = CONGESTION_AVOIDANCE;
+    } else if (cong_state == CONGESTION_AVOIDANCE) {
+        ca_acc += 1;
+        if (ca_acc >= cwnd) { cwnd += 1; ca_acc = 0; }
     }
 }
 ```
 
-通过这种流水线加选择确认的方式，我们获得了几个好处：首先提高了网络利用率，因为不需要等待每个ACK；其次增强了可靠性，通过超时重传机制保证丢失的包最终会被接收；第三，支持网络中包乱序到达的情况，因为接收端会将乱序包缓冲起来。
+具体来说，维护一个累加器变量 `ca_acc`。每次收到新 ACK，`ca_acc += 1`；当 `ca_acc >= cwnd` 时，说明已经累积了足够的"分数份额"（相当于 cwnd 个 1/cwnd），此时 `cwnd += 1`，`ca_acc` 重置为 0。这种设计完全避免了浮点运算，用整数加法就能精确实现分数效果。
 
-#### 7. 流量控制：固定大小的发送窗口和接收窗口
+#### 3.6.2 3 个重复 ACK：快速重传 + 快速恢复窗口调整
 
-流量控制的目的是防止发送端发送数据过快而导致接收端的缓冲区溢出。我们使用固定大小的窗口来实现这个目标。
-
-在发送端，发送窗口的大小受两个因素限制。第一个是协议级别的固定窗口大小`WINDOW_SIZE`，定义为10个包。第二个是拥塞控制算法的cwnd（拥塞窗口），它根据网络条件动态变化。实际可用的发送窗口大小是两者的最小值。
+当收到 3 个重复 ACK 时，表明网络中发生了**轻度丢包**。接收端仍在反馈，只是某个包丢失了，网络整体并未崩溃。Reno 的策略是采用**快速恢复**：`ssthresh` 减半（如果原来 `cwnd` 很大，`ssthresh` 会降为一半，限制未来的增长速度），但 `cwnd` 本身设置为 `ssthresh + 3`。这个"+3"的含义是：三个重复 ACK 本身说明了有三个包已经离开了网络（被接收端接收了，只是在这三个包之前有一个包丢失了），所以可以放心地再发送三个新包，以保持网络的管道充满。
 
 ```cpp
-// protocol.h中的定义
-#define WINDOW_SIZE 10           // 固定窗口大小：10个包
-#define DATA_SIZE 960            // 每个包的数据大小
-
-// 在发送循环中检查窗口
-uint32_t effective_window = std::min((uint32_t)WINDOW_SIZE, cwnd);
-
-if (send_window.size() < effective_window) {
-    // 可以发送新的包
-    // ... 读取数据、构造包、发送 ...
-} else {
-    // 窗口满，等待ACK
-    // ... 接收ACK、处理重传 ...
-}
+ssthresh = (cwnd / 2 > 0) ? cwnd / 2 : 1;
+cwnd = ssthresh + 3;
+ca_acc = 0;
+cong_state = CONGESTION_AVOIDANCE;
 ```
 
-发送窗口的大小限制确保了发送端不会一次性发送超过10个包。这个数字的选择是在可靠性和效率之间的权衡。窗口太小会导致吞吐量低，因为发送端需要频繁等待ACK；窗口太大会导致网络中的包过多，增加丢包的可能性。
+并立即重传最早未确认的数据包（快速重传），如 3.4.3 所示。快速恢复的优点是恢复速度快：不必等待 500ms 的超时，而是在数据包丢失后数十到数百毫秒内就开始恢复，因此对用户体验的影响很小。
 
-在接收端，接收窗口用来限制接收端能够接受的包的范围。接收窗口的大小同样是`WINDOW_SIZE`个包，换算成字节就是`WINDOW_SIZE × DATA_SIZE = 10 × 960 = 9600`字节。
+#### 3.6.3 超时：退避
+
+如果发生了超时（500ms 未收到 ACK），这意味着**网络状况极其恶劣**，甚至可能是某条链路断开或远端主机离线。在这种情况下，继续缓慢增长窗口是不明智的，应该采取更激进的退避策略：`ssthresh` 减半，`cwnd` 直接重置为 1，回到慢启动阶段。这样做相当于"从零开始重新探测网络"。
 
 ```cpp
-// 接收端的接收缓冲区
-std::map<uint32_t, Packet> recv_buffer;
-uint32_t recv_base;  // 期望接收的序列号
-
-// 检查包是否在接收窗口内
-bool isPacketInWindow(uint32_t seq_num) {
-    // 包的序列号应该在 [recv_base, recv_base + WINDOW_SIZE * DATA_SIZE) 范围内
-    uint32_t window_end = recv_base + WINDOW_SIZE * DATA_SIZE;
-    
-    if (seq_num >= recv_base && seq_num < window_end) {
-        return true;
-    }
-    return false;
-}
+ssthresh = (cwnd / 2 > 0) ? cwnd / 2 : 1;
+cwnd = 1;
+cong_state = SLOW_START;
+ca_acc = 0;
 ```
 
-当接收端接收到一个数据包时，它首先检查序列号是否在接收窗口内：
+总结 Reno 算法的三个关键转移：
+1. **新 ACK**（非重复）：在慢启动中指数增长，在拥塞避免中线性增长；重置重复计数。
+2. **3 个重复 ACK**：认为出现轻度丢包；降低 ssthresh（减半），但保守调整 cwnd（= ssthresh + 3）；立即重传。
+3. **超时**：认为出现严重丢包或断连；激进降低 cwnd（= 1），重新回到慢启动。
 
-```cpp
-bool recvFile(const char* save_path) {
-    std::ofstream file(save_path, std::ios::binary);
-    
-    uint32_t total_size = 0;
-    uint32_t received = 0;
-    uint32_t recv_base = 0;
-    
-    while (received < total_size) {
-        Packet data_pkt;
-        if (!recvPacket(data_pkt, CONNECT_TIMEOUT_MS)) {
-            continue;  // 超时，继续等待
-        }
-        
-        if (data_pkt.header.packet_type == PKT_DATA) {
-            // 验证校验和（省略代码）
-            
-            // 1. 检查序列号是否在窗口内
-            if (!isPacketInWindow(data_pkt.header.seq_num)) {
-                // 包超出窗口，可能是重复的旧包，发送ACK后丢弃
-                sendAck(recv_base);
-                continue;
-            }
-            
-            // 2. 第一个包时提取文件信息
-            if (received == 0) {
-                total_size = data_pkt.header.file_size;
-            }
-            
-            // 3. 将包加入缓冲区
-            recv_buffer[data_pkt.header.seq_num] = data_pkt;
-            
-            // 4. 按顺序交付数据给应用层
-            while (recv_buffer.find(recv_base) != recv_buffer.end()) {
-                Packet& pkt = recv_buffer[recv_base];
-                file.write(pkt.data, pkt.header.data_length);
-                received += pkt.header.data_length;
-                
-                // 更新recv_base，窗口向前滑动
-                recv_base += pkt.header.data_length;
-                
-                // 从缓冲区删除已交付的包
-                recv_buffer.erase(recv_buffer.begin()->first);
-            }
-            
-            // 5. 发送ACK，告知已接收的最高序列号
-            sendAck(recv_base);
-        }
-    }
-    
-    file.close();
-    return true;
-}
-```
+这三个转移共同构成了一个自适应的、反馈驱动的窗口控制机制。通过实时监测网络反馈（ACK 的来临情况），Reno 算法能够快速适应网络变化，既能在网络状况良好时充分利用带宽，也能在网络恶化时及时退避，避免雪崩式的流量堆积。
 
-流量控制的工作原理是这样的：当接收端的缓冲区接近满时（许多包在等待传输间隙中的包时），接收端发送的ACK会告诉发送端"我的recv_base还是这个值，说明有包在缓冲中等待"。发送端看到ACK没有增加，就知道接收端的缓冲区已经满了，于是停止发送新的包，等待缓冲区被清空。
-
-让我们用一个具体的例子来说明。假设WINDOW_SIZE=3（为了简化），DATA_SIZE=100：
-
-```
-时刻1：发送端发送包1-3（seq 0, 100, 200）
-       接收端收到所有3个包，recv_base=300，回复ACK 300
-       发送窗口：[0, 100, 200] - 满
-       接收缓冲区：[0, 100, 200]
-
-时刻2：发送端尝试发送包4（seq 300）
-       但发送窗口已满（3个包），必须等待ACK
-       应用层开始处理缓冲中的包，seq 0的包被交付
-       recv_base更新为100，发送ACK 100
-
-时刻3：发送端收到ACK 100
-       删除序列号<=100的包从发送窗口
-       发送窗口现在有2个包[200]，有空间了
-       发送包4（seq 300）
-       发送窗口：[200, 300] - 有空间
-
-时刻4：接收端收到包4
-       缓冲区现在有[200, 300]
-       seq 100的包还未到达，seq 200在缓冲中等待
-       recv_base仍然是100（因为缺少seq 100的包）
-       发送ACK 100（与上次相同）
-
-时刻5：包传输延迟，seq 100的包迟到
-       接收端收到seq 100的包
-       按顺序交付：100, 200, 300
-       recv_base更新为400，发送ACK 400
-```
-
-在这个例子中，窗口大小的限制确保了：
-1. 发送端不会过快地填满接收端的缓冲区
-2. 接收端可以控制接收速率，防止缓冲区溢出
-3. 即使包乱序到达，也能通过窗口机制有序地交付
-
-这就是流量控制的核心——通过限制窗口大小，使发送端的速率与接收端的处理速率相匹配。
-
+修改后的拥塞控制逻辑已重新验证：在丢包/延迟模拟环境下仍可正常完整接收文件。
 
 
 ---
@@ -639,7 +608,7 @@ mkdir d:\study\computer_net\l2\output
 
 ```powershell
 cd d:\study\computer_net
-l2\receiver.exe 9003 l2\output\1.jpg
+lab2\receiver.exe 9003 lab2\output\2.jpg
 ```
 
 输出应该显示：
@@ -654,7 +623,7 @@ l2\receiver.exe 9003 l2\output\1.jpg
 
 ```powershell
 cd d:\study\computer_net
-l2\sender.exe l2\testfile\1.jpg 127.0.0.1 9001
+lab2\sender.exe lab2\testfile\3.jpg 127.0.0.1 9001
 ```
 
 等待传输完成。
@@ -756,13 +725,6 @@ Router配置：
 - **慢启动阶段**：cwnd从1开始指数增长
 - **拥塞避免阶段**：cwnd线性增长，响应丢包事件
 - **超时响应**：cwnd快速退避（减半），防止网络拥塞恶化
-
-### 5.5 已知局限性
-
-1. **超时时间固定**：当前设为500ms，未根据RTT动态调整
-2. **快速重传未实现**：未能在收到3个重复ACK时立即重传
-3. **SACK未实现**：只能确认连续的序列号
-4. **流量控制简化**：接收端窗口大小与发送端固定相同
 
 ---
 

@@ -7,7 +7,7 @@
 RdtSocket::RdtSocket()
     : sock(INVALID_SOCKET), connected(false), local_seq(0), remote_seq(0),
       recv_base(0), send_base(0), cong_state(SLOW_START), cwnd(1), ssthresh(10),
-      dup_ack_count(0), last_ack_seq(0) {
+      dup_ack_count(0), last_ack_seq(0), ca_acc(0) {
     memset(&local_addr, 0, sizeof(local_addr));
     memset(&remote_addr, 0, sizeof(remote_addr));
 }
@@ -233,6 +233,8 @@ bool RdtSocket::canSendPacket() {
 void RdtSocket::slideWindow(uint32_t ack_seq) {
     auto it = send_window.begin();
     while (it != send_window.end() && it->first < ack_seq) {
+        // 移除SACK记录（已连续确认的包）
+        sacked_packets.erase(it->first);
         it = send_window.erase(it);
     }
 }
@@ -243,37 +245,89 @@ bool RdtSocket::isPacketInWindow(uint32_t seq) {
 
 void RdtSocket::processAck(uint32_t ack_seq) {
     if (ack_seq > last_ack_seq) {
+        // 新的 ACK，重置重复计数
         onNewAck();
         last_ack_seq = ack_seq;
         slideWindow(ack_seq);
+    } else if (ack_seq == last_ack_seq) {
+        // 重复 ACK
+        onDuplicateAck();
+        log("[DUPACK] Duplicate ACK received (ack=%u), count=%u", ack_seq, dup_ack_count);
+        
+        if (dup_ack_count == 3) {
+            // 3 个重复 ACK，触发快速重传和快速恢复
+            log("[DUPACK] 3 duplicate ACKs received! Triggering Fast Retransmit and Fast Recovery");
+            
+            // 设置阈值为当前拥塞窗口的一半
+            ssthresh = (cwnd / 2 > 0) ? cwnd / 2 : 1;
+            log("[DUPACK] ssthresh set to %u", ssthresh);
+            
+            // 快速恢复（Reno 的经典写法）
+            // cwnd = ssthresh + 3*MSS（因为收到了 3 个 dupACK）
+            cwnd = ssthresh + 3;  // 这里 3 代表 3*MSS，假设一个包就是一个 MSS
+            ca_acc = 0;  // 重置累加器
+            cong_state = CONGESTION_AVOIDANCE;
+            log("[DUPACK] cwnd set to %u (ssthresh + 3), ca_acc reset, entering Congestion Avoidance", cwnd);
+            
+            // 快速重传：重传丢失的数据包
+            // 找到需要重传的最早未确认包
+            if (!send_window.empty()) {
+                auto first_unacked = send_window.begin();
+                log("[DUPACK] Fast Retransmit: retransmitting packet (seq=%u)", first_unacked->first);
+                sendPacket(first_unacked->second.packet);
+                first_unacked->second.send_time = std::chrono::steady_clock::now();
+                first_unacked->second.retransmit_count++;
+            }
+        }
     }
+    // 如果 ack_seq < last_ack_seq，说明是更早的 ACK，直接忽略
 }
 
 void RdtSocket::onNewAck() {
+    // 重置重复 ACK 计数
+    dup_ack_count = 0;
+    
     if (cong_state == SLOW_START) {
         cwnd++;
         if (cwnd >= ssthresh) {
             cong_state = CONGESTION_AVOIDANCE;
+            log("[NEWACK] Entering Congestion Avoidance, cwnd=%u, ssthresh=%u", cwnd, ssthresh);
         }
     } else if (cong_state == CONGESTION_AVOIDANCE) {
-        cwnd++;
+        // 拥塞避免：每个 RTT 增加 1 MSS（MSS=1）
+        // 在一个 RTT 内约有 cwnd 个 ACK，所以每个 ACK 增加 1/cwnd
+        // 使用累加器避免浮点数：攒够 cwnd 次 ACK 再 +1
+        ca_acc += 1;
+        if (ca_acc >= cwnd) {
+            cwnd += 1;
+            ca_acc = 0;
+            log("[NEWACK] Congestion Avoidance: cwnd increased to %u (accumulated %u ACKs)", cwnd, cwnd - 1);
+        }
     }
-    dup_ack_count = 0;
 }
 
 void RdtSocket::onDuplicateAck() {
     dup_ack_count++;
+    log("[ONDUPACK] dup_ack_count incremented to %u", dup_ack_count);
 }
 
 void RdtSocket::onTimeout() {
     ssthresh = (cwnd / 2 > 0) ? cwnd / 2 : 1;
     cwnd = 1;
     cong_state = SLOW_START;
+    ca_acc = 0;  // 重置累加器，重新开始慢启动
+    log("[TIMEOUT] Timeout: cwnd reset to 1, ssthresh to %u, entering Slow Start", ssthresh);
 }
 
 void RdtSocket::retransmitPackets() {
     auto now = std::chrono::steady_clock::now();
     for (auto& entry : send_window) {
+        // 如果已通过SACK块确认，则不需重传
+        if (sacked_packets.find(entry.first) != sacked_packets.end()) {
+            log("[SACK] Packet (seq=%u) is SACKED, skipping retransmit", entry.first);
+            continue;
+        }
+
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - entry.second.send_time).count();
         if (elapsed > TIMEOUT_MS) {
@@ -302,6 +356,83 @@ bool RdtSocket::sendAck(uint32_t ack_seq) {
     ack.header.checksum = 0;  // 计算前清零
     ack.header.checksum = calculateChecksum(&ack.header,
                                            sizeof(ack.header) - sizeof(ack.header.checksum));
+    return sendPacket(ack);
+}
+
+void RdtSocket::generateSackBlocks(SackBlock* blocks, uint8_t& count) {
+    count = 0;
+    if (recv_buffer.empty()) return;
+
+    // 遍历recv_buffer，找出不连续的已缓存数据块
+    uint32_t prev_end = recv_base;
+    SackBlock current_block;
+    bool in_block = false;
+
+    for (auto& entry : recv_buffer) {
+        uint32_t seq = entry.first;
+
+        // 如果当前包在recv_base之前或重叠，跳过
+        if (seq < recv_base) continue;
+
+        // 检查是否有间隙
+        if (seq > prev_end) {
+            // 间隙前有缓存数据，保存当前块
+            if (in_block && count < MAX_SACK_BLOCKS) {
+                blocks[count++] = current_block;
+                in_block = false;
+            }
+        }
+
+        // 开始或扩展当前块
+        if (!in_block) {
+            current_block.start = seq;
+            in_block = true;
+        }
+
+        // 更新块的结束位置
+        const Packet& pkt = entry.second;
+        current_block.end = seq + pkt.header.data_length;
+        prev_end = current_block.end;
+    }
+
+    // 保存最后一个块
+    if (in_block && count < MAX_SACK_BLOCKS) {
+        blocks[count++] = current_block;
+    }
+
+    if (count > 0) {
+        log("[SACK] Generated %u SACK blocks:", count);
+        for (uint8_t i = 0; i < count; i++) {
+            log("[SACK]   Block[%u]: %u-%u", i, blocks[i].start, blocks[i].end);
+        }
+    }
+}
+
+bool RdtSocket::sendAckWithSack(uint32_t ack_seq) {
+    Packet ack;
+    ack.header.packet_type = PKT_ACK;
+    ack.header.seq_num = local_seq;
+    ack.header.ack_num = ack_seq;
+
+    // 生成SACK块
+    SackBlock sack_blocks[MAX_SACK_BLOCKS];
+    uint8_t sack_count = 0;
+    generateSackBlocks(sack_blocks, sack_count);
+
+    // 编码SACK块到data部分
+    uint16_t data_len = 0;
+    if (sack_count > 0) {
+        data_len = encodeSackBlocks(sack_blocks, sack_count, ack.data, DATA_SIZE);
+    }
+
+    ack.header.data_length = data_len;
+    ack.header.checksum = 0;  // 计算前清零
+    ack.header.checksum = calculateChecksum(&ack.header,
+                                           sizeof(ack.header) - sizeof(ack.header.checksum));
+    if (data_len > 0) {
+        ack.header.checksum += calculateChecksum(ack.data, data_len);
+    }
+
     return sendPacket(ack);
 }
 
@@ -337,6 +468,23 @@ bool RdtSocket::sendFile(const char* filename) {
             if (recvPacket(ack_pkt, 50)) {
                 if (ack_pkt.header.packet_type == PKT_ACK) {
                     processAck(ack_pkt.header.ack_num);
+
+                    // 解析SACK块
+                    if (ack_pkt.header.data_length > 0) {
+                        SackBlock sack_blocks[MAX_SACK_BLOCKS];
+                        uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
+                                                             sack_blocks, MAX_SACK_BLOCKS);
+                        if (sack_count > 0) {
+                            for (uint8_t i = 0; i < sack_count; i++) {
+                                // 标记这个范围内的包为已缓存确认
+                                for (uint32_t seq_num = sack_blocks[i].start; seq_num < sack_blocks[i].end; seq_num++) {
+                                    if (send_window.find(seq_num) != send_window.end()) {
+                                        sacked_packets.insert(seq_num);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             retransmitPackets();
@@ -385,6 +533,25 @@ bool RdtSocket::sendFile(const char* filename) {
         if (recvPacket(ack_pkt, 10)) {
             if (ack_pkt.header.packet_type == PKT_ACK) {
                 processAck(ack_pkt.header.ack_num);
+
+                // 解析SACK块
+                if (ack_pkt.header.data_length > 0) {
+                    SackBlock sack_blocks[MAX_SACK_BLOCKS];
+                    uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
+                                                         sack_blocks, MAX_SACK_BLOCKS);
+                    if (sack_count > 0) {
+                        log("[SACK] Received %u SACK blocks:", sack_count);
+                        for (uint8_t i = 0; i < sack_count; i++) {
+                            log("[SACK]   Block[%u]: %u-%u", i, sack_blocks[i].start, sack_blocks[i].end);
+                            // 标记这个范围内的包为已缓存确认
+                            for (uint32_t seq = sack_blocks[i].start; seq < sack_blocks[i].end; seq++) {
+                                if (send_window.find(seq) != send_window.end()) {
+                                    sacked_packets.insert(seq);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         retransmitPackets();
@@ -397,6 +564,25 @@ bool RdtSocket::sendFile(const char* filename) {
         if (recvPacket(ack_pkt, 100)) {
             if (ack_pkt.header.packet_type == PKT_ACK) {
                 processAck(ack_pkt.header.ack_num);
+
+                // 解析SACK块
+                if (ack_pkt.header.data_length > 0) {
+                    SackBlock sack_blocks[MAX_SACK_BLOCKS];
+                    uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
+                                                         sack_blocks, MAX_SACK_BLOCKS);
+                    if (sack_count > 0) {
+                        log("[SACK] Received %u SACK blocks:", sack_count);
+                        for (uint8_t i = 0; i < sack_count; i++) {
+                            log("[SACK]   Block[%u]: %u-%u", i, sack_blocks[i].start, sack_blocks[i].end);
+                            // 标记这个范围内的包为已缓存确认
+                            for (uint32_t seq = sack_blocks[i].start; seq < sack_blocks[i].end; seq++) {
+                                if (send_window.find(seq) != send_window.end()) {
+                                    sacked_packets.insert(seq);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         retransmitPackets();
@@ -468,7 +654,7 @@ bool RdtSocket::recvFile(const char* save_path) {
 
             if (!isPacketInWindow(data_pkt.header.seq_num)) {
                 log("[RECV] Packet out of window (seq=%u)", data_pkt.header.seq_num);
-                sendAck(recv_base);
+                sendAckWithSack(recv_base);
                 continue;
             }
 
@@ -493,7 +679,7 @@ bool RdtSocket::recvFile(const char* save_path) {
                 recv_base += pkt.header.data_length;
             }
 
-            sendAck(recv_base);
+            sendAckWithSack(recv_base);
 
             if (received >= total_size) {
                 log("[RECV] All data received");

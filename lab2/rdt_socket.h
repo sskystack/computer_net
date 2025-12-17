@@ -62,12 +62,16 @@ private:
     // ===== 接收缓冲区（支持乱序接收） =====
     std::map<uint32_t, Packet> recv_buffer;          // 接收缓冲区（用于乱序数据）
 
+    // ===== 发送端SACK追踪 =====
+    std::set<uint32_t> sacked_packets;               // 通过SACK确认的包序号（不连续的部分）
+
     // ===== 拥塞控制（RENO算法） =====
     CongestionState cong_state;   // 拥塞控制状态
     uint32_t cwnd;                 // 拥塞窗口大小（以包数计）
     uint32_t ssthresh;             // 慢启动阈值
     uint32_t dup_ack_count;        // 重复ACK计数
     uint32_t last_ack_seq;         // 上次ACK的序列号
+    uint32_t ca_acc;               // 拥塞避免累加器（定点数实现）
 
     // 辅助函数
     bool sendPacket(const Packet& pkt);
@@ -96,6 +100,10 @@ private:
     bool sendFin();
     bool sendFinAck();
     bool sendAck(uint32_t ack_seq);            // 发送ACK包
+    bool sendAckWithSack(uint32_t ack_seq);    // 发送带SACK块的ACK包
+
+    // SACK相关
+    void generateSackBlocks(SackBlock* blocks, uint8_t& count);  // 从recv_buffer生成SACK块
 
     // 日志输出
     void log(const char* format, ...);
