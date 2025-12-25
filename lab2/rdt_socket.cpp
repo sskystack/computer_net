@@ -462,6 +462,8 @@ bool RdtSocket::sendFile(const char* filename) {
     uint32_t seq = local_seq;
     bool first_data = true;
 
+    auto start_time = std::chrono::steady_clock::now(); // 记录开始时间
+
     while (sent < file_size) {
         if (!canSendPacket()) {
             Packet ack_pkt;
@@ -469,14 +471,12 @@ bool RdtSocket::sendFile(const char* filename) {
                 if (ack_pkt.header.packet_type == PKT_ACK) {
                     processAck(ack_pkt.header.ack_num);
 
-                    // 解析SACK块
                     if (ack_pkt.header.data_length > 0) {
                         SackBlock sack_blocks[MAX_SACK_BLOCKS];
                         uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
                                                              sack_blocks, MAX_SACK_BLOCKS);
                         if (sack_count > 0) {
                             for (uint8_t i = 0; i < sack_count; i++) {
-                                // 标记这个范围内的包为已缓存确认
                                 for (uint32_t seq_num = sack_blocks[i].start; seq_num < sack_blocks[i].end; seq_num++) {
                                     if (send_window.find(seq_num) != send_window.end()) {
                                         sacked_packets.insert(seq_num);
@@ -500,8 +500,7 @@ bool RdtSocket::sendFile(const char* filename) {
         data_pkt.header.ack_num = recv_base;
         data_pkt.header.data_length = to_send;
         data_pkt.header.file_size = file_size;
-        data_pkt.header.checksum = 0;  // 计算前清零
-        // 确保reserved字段被初始化为0
+        data_pkt.header.checksum = 0;
         memset(data_pkt.header.reserved, 0, sizeof(data_pkt.header.reserved));
 
         if (first_data) {
@@ -510,8 +509,7 @@ bool RdtSocket::sendFile(const char* filename) {
             first_data = false;
         }
 
-        // 计算校验和：header（不包括checksum字段）+ data部分
-        data_pkt.header.checksum = 0;  // 计算前清零
+        data_pkt.header.checksum = 0;
         uint32_t header_checksum = calculateChecksum(&data_pkt.header, sizeof(data_pkt.header) - sizeof(data_pkt.header.checksum));
         uint32_t data_checksum = calculateChecksum(data_pkt.data, to_send);
         data_pkt.header.checksum = (header_checksum + data_checksum) & 0xFFFF;
@@ -534,7 +532,6 @@ bool RdtSocket::sendFile(const char* filename) {
             if (ack_pkt.header.packet_type == PKT_ACK) {
                 processAck(ack_pkt.header.ack_num);
 
-                // 解析SACK块
                 if (ack_pkt.header.data_length > 0) {
                     SackBlock sack_blocks[MAX_SACK_BLOCKS];
                     uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
@@ -543,7 +540,6 @@ bool RdtSocket::sendFile(const char* filename) {
                         log("[SACK] Received %u SACK blocks:", sack_count);
                         for (uint8_t i = 0; i < sack_count; i++) {
                             log("[SACK]   Block[%u]: %u-%u", i, sack_blocks[i].start, sack_blocks[i].end);
-                            // 标记这个范围内的包为已缓存确认
                             for (uint32_t seq = sack_blocks[i].start; seq < sack_blocks[i].end; seq++) {
                                 if (send_window.find(seq) != send_window.end()) {
                                     sacked_packets.insert(seq);
@@ -565,7 +561,6 @@ bool RdtSocket::sendFile(const char* filename) {
             if (ack_pkt.header.packet_type == PKT_ACK) {
                 processAck(ack_pkt.header.ack_num);
 
-                // 解析SACK块
                 if (ack_pkt.header.data_length > 0) {
                     SackBlock sack_blocks[MAX_SACK_BLOCKS];
                     uint8_t sack_count = decodeSackBlocks(ack_pkt.data, ack_pkt.header.data_length,
@@ -574,7 +569,6 @@ bool RdtSocket::sendFile(const char* filename) {
                         log("[SACK] Received %u SACK blocks:", sack_count);
                         for (uint8_t i = 0; i < sack_count; i++) {
                             log("[SACK]   Block[%u]: %u-%u", i, sack_blocks[i].start, sack_blocks[i].end);
-                            // 标记这个范围内的包为已缓存确认
                             for (uint32_t seq = sack_blocks[i].start; seq < sack_blocks[i].end; seq++) {
                                 if (send_window.find(seq) != send_window.end()) {
                                     sacked_packets.insert(seq);
@@ -593,13 +587,20 @@ bool RdtSocket::sendFile(const char* filename) {
     }
 
     file.close();
+
+    auto end_time = std::chrono::steady_clock::now(); // 记录结束时间
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    double throughput = (file_size / 1024.0 / 1024.0) / (duration / 1000.0); // MB/s
+
     log("[SEND] File transfer completed");
+    log("[SEND] Total time: %lld ms", duration);
+    log("[SEND] Average throughput: %.2f MB/s", throughput);
 
     Packet fin;
     fin.header.packet_type = PKT_FIN;
     fin.header.seq_num = seq;
     fin.header.ack_num = recv_base;
-    fin.header.checksum = 0;  // 计算前清零
+    fin.header.checksum = 0;
     fin.header.checksum = calculateChecksum(&fin.header,
                                            sizeof(fin.header) - sizeof(fin.header.checksum));
 

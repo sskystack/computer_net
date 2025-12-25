@@ -8,7 +8,7 @@
 // 协议常量定义
 const uint16_t PACKET_SIZE = 1024;           // 数据包大小（包括头部）
 const uint16_t DATA_SIZE = PACKET_SIZE - 64; // 实际数据大小 = 1024 - 64字节头
-const uint16_t WINDOW_SIZE = 10;             // 滑动窗口大小（固定）
+const uint16_t WINDOW_SIZE = 50;             // 滑动窗口大小（固定）
 const uint32_t TIMEOUT_MS = 500;             // 超时时间（毫秒）
 const uint32_t CONNECT_TIMEOUT_MS = 5000;   // 连接超时时间
 
@@ -20,7 +20,6 @@ const uint16_t SACK_BLOCK_SIZE = 8;          // 每个SACK块大小（4字节sta
 enum CongestionState {
     SLOW_START,              // 慢启动
     CONGESTION_AVOIDANCE,    // 拥塞避免
-    FAST_RECOVERY           // 快速恢复
 };
 
 // 数据包类型
