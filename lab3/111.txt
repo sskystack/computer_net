@@ -1,0 +1,610 @@
+39的
+Frame 39: Packet, 879 bytes on wire (7032 bits), 879 bytes captured (7032 bits) on interface \Device\NPF_Loopback, id 0
+    Section number: 1
+    Interface id: 0 (\Device\NPF_Loopback)
+    Encapsulation type: NULL/Loopback (15)
+    Arrival Time: Dec 25, 2025 14:43:10.748883000 中国标准时间
+    UTC Arrival Time: Dec 25, 2025 06:43:10.748883000 UTC
+    Epoch Arrival Time: 1766644990.748883000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 210.000 microseconds]
+    [Time delta from previous displayed frame: 432.062000 milliseconds]
+    [Time since reference or first frame: 1.512904000 seconds]
+    Frame Number: 39
+    Frame Length: 879 bytes (7032 bits)
+    Capture Length: 879 bytes (7032 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: null:ipv6:tcp:http]
+    Character encoding: ASCII (0)
+    [Coloring Rule Name: HTTP]
+    [Coloring Rule String: http || tcp.port == 80 || http2]
+Internet Protocol Version 6, Src: ::1, Dst: ::1
+    0110 .... = Version: 6
+    .... 0000 0000 .... .... .... .... .... = Traffic Class: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        .... 0000 00.. .... .... .... .... .... = Differentiated Services Codepoint: Default (0)
+        .... .... ..00 .... .... .... .... .... = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    .... 1110 0101 1011 1010 0010 = Flow Label: 0xe5ba2
+    Payload Length: 835
+    Next Header: TCP (6)
+    Hop Limit: 128
+    Source Address: ::1
+    Destination Address: ::1
+    [Stream index: 0]
+Transmission Control Protocol, Src Port: 62593, Dst Port: 8000, Seq: 1, Ack: 1, Len: 815
+    Source Port: 62593
+    Destination Port: 8000
+    [Stream index: 4]
+    [Stream Packet Number: 4]
+    [Conversation completeness: Complete, WITH_DATA (31)]
+        ..0. .... = RST: Absent
+        ...1 .... = FIN: Present
+        .... 1... = Data: Present
+        .... .1.. = ACK: Present
+        .... ..1. = SYN-ACK: Present
+        .... ...1 = SYN: Present
+        [Completeness Flags: ·FDASS]
+    [TCP Segment Len: 815]
+    Sequence Number: 1    (relative sequence number)
+    Sequence Number (raw): 3932404013
+    [Next Sequence Number: 816    (relative sequence number)]
+    Acknowledgment Number: 1    (relative ack number)
+    Acknowledgment number (raw): 505497939
+    0101 .... = Header Length: 20 bytes (5)
+    Flags: 0x018 (PSH, ACK)
+        000. .... .... = Reserved: Not set
+        ...0 .... .... = Accurate ECN: Not set
+        .... 0... .... = Congestion Window Reduced: Not set
+        .... .0.. .... = ECN-Echo: Not set
+        .... ..0. .... = Urgent: Not set
+        .... ...1 .... = Acknowledgment: Set
+        .... .... 1... = Push: Set
+        .... .... .0.. = Reset: Not set
+        .... .... ..0. = Syn: Not set
+        .... .... ...0 = Fin: Not set
+        [TCP Flags: ·······AP···]
+    Window: 8440
+    [Calculated window size: 2160640]
+    [Window size scaling factor: 256]
+    Checksum: 0x6065 [unverified]
+    [Checksum Status: Unverified]
+    Urgent Pointer: 0
+    [Timestamps]
+        [Time since first frame in this TCP stream: 547.000 microseconds]
+        [Time since previous frame in this TCP stream: 460.000 microseconds]
+    [SEQ/ACK analysis]
+        [iRTT: 87.000 microseconds]
+        [Bytes in flight: 815]
+        [Bytes sent since last PSH flag: 815]
+    [Client Contiguous Streams: 1]
+    [Server Contiguous Streams: 1]
+    TCP payload (815 bytes)
+Hypertext Transfer Protocol
+    GET /index.html HTTP/1.1\r\n
+        Request Method: GET
+        Request URI: /index.html
+        Request Version: HTTP/1.1
+    Host: localhost:8000\r\n
+    Connection: keep-alive\r\n
+    Cache-Control: max-age=0\r\n
+    sec-ch-ua: "Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"\r\n
+    sec-ch-ua-mobile: ?0\r\n
+    sec-ch-ua-platform: "Windows"\r\n
+    Upgrade-Insecure-Requests: 1\r\n
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36\r\n
+    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7\r\n
+    Sec-Fetch-Site: none\r\n
+    Sec-Fetch-Mode: navigate\r\n
+    Sec-Fetch-User: ?1\r\n
+    Sec-Fetch-Dest: document\r\n
+    Accept-Encoding: gzip, deflate, br, zstd\r\n
+    Accept-Language: en-US,en;q=0.9\r\n
+    Cookie: Pycharm-4ca19b4b=9a13af7f-e666-4ec0-9297-54e012e5bf14; Hm_lvt_087ceb5ea69d10fb5bbb6bc49c209fa2=1739155505\r\n
+    \r\n
+    [Response in frame: 43]
+    [Full request URI: http://localhost:8000/index.html]
+43的
+Frame 43: Packet, 5618 bytes on wire (44944 bits), 5618 bytes captured (44944 bits) on interface \Device\NPF_Loopback, id 0
+    Section number: 1
+    Interface id: 0 (\Device\NPF_Loopback)
+    Encapsulation type: NULL/Loopback (15)
+    Arrival Time: Dec 25, 2025 14:43:10.749807000 中国标准时间
+    UTC Arrival Time: Dec 25, 2025 06:43:10.749807000 UTC
+    Epoch Arrival Time: 1766644990.749807000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 195.000 microseconds]
+    [Time delta from previous displayed frame: 924.000 microseconds]
+    [Time since reference or first frame: 1.513828000 seconds]
+    Frame Number: 43
+    Frame Length: 5618 bytes (44944 bits)
+    Capture Length: 5618 bytes (44944 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: null:ipv6:tcp:http:data-text-lines]
+    Character encoding: ASCII (0)
+    [Coloring Rule Name: HTTP]
+    [Coloring Rule String: http || tcp.port == 80 || http2]
+Internet Protocol Version 6, Src: ::1, Dst: ::1
+    0110 .... = Version: 6
+    .... 0000 0000 .... .... .... .... .... = Traffic Class: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        .... 0000 00.. .... .... .... .... .... = Differentiated Services Codepoint: Default (0)
+        .... .... ..00 .... .... .... .... .... = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    .... 0111 1001 0101 0110 0100 = Flow Label: 0x79564
+    Payload Length: 5574
+    Next Header: TCP (6)
+    Hop Limit: 128
+    Source Address: ::1
+    Destination Address: ::1
+    [Stream index: 0]
+Transmission Control Protocol, Src Port: 8000, Dst Port: 62593, Seq: 188, Ack: 816, Len: 5554
+    Source Port: 8000
+    Destination Port: 62593
+    [Stream index: 4]
+    [Stream Packet Number: 8]
+    [Conversation completeness: Complete, WITH_DATA (31)]
+        ..0. .... = RST: Absent
+        ...1 .... = FIN: Present
+        .... 1... = Data: Present
+        .... .1.. = ACK: Present
+        .... ..1. = SYN-ACK: Present
+        .... ...1 = SYN: Present
+        [Completeness Flags: ·FDASS]
+    [TCP Segment Len: 5554]
+    Sequence Number: 188    (relative sequence number)
+    Sequence Number (raw): 505498126
+    [Next Sequence Number: 5742    (relative sequence number)]
+    Acknowledgment Number: 816    (relative ack number)
+    Acknowledgment number (raw): 3932404828
+    0101 .... = Header Length: 20 bytes (5)
+    Flags: 0x018 (PSH, ACK)
+        000. .... .... = Reserved: Not set
+        ...0 .... .... = Accurate ECN: Not set
+        .... 0... .... = Congestion Window Reduced: Not set
+        .... .0.. .... = ECN-Echo: Not set
+        .... ..0. .... = Urgent: Not set
+        .... ...1 .... = Acknowledgment: Set
+        .... .... 1... = Push: Set
+        .... .... .0.. = Reset: Not set
+        .... .... ..0. = Syn: Not set
+        .... .... ...0 = Fin: Not set
+        [TCP Flags: ·······AP···]
+    Window: 8436
+    [Calculated window size: 2159616]
+    [Window size scaling factor: 256]
+    Checksum: 0x68dc [unverified]
+    [Checksum Status: Unverified]
+    Urgent Pointer: 0
+    [Timestamps]
+        [Time since first frame in this TCP stream: 1.471000 milliseconds]
+        [Time since previous frame in this TCP stream: 195.000 microseconds]
+    [SEQ/ACK analysis]
+        [iRTT: 87.000 microseconds]
+        [Bytes in flight: 5554]
+        [Bytes sent since last PSH flag: 5554]
+    [Client Contiguous Streams: 1]
+    [Server Contiguous Streams: 1]
+    TCP payload (5554 bytes)
+    TCP segment data (5554 bytes)
+Hypertext Transfer Protocol
+    HTTP/1.0 200 OK\r\n
+        Response Version: HTTP/1.0
+        Status Code: 200
+        [Status Code Description: OK]
+        Response Phrase: OK
+    Server: SimpleHTTP/0.6 Python/3.13.5\r\n
+    Date: Thu, 25 Dec 2025 06:43:10 GMT\r\n
+    Content-type: text/html\r\n
+    Content-Length: 5554\r\n
+    Last-Modified: Thu, 25 Dec 2025 06:30:15 GMT\r\n
+    \r\n
+    [Request in frame: 39]
+    [Time since request: 924.000 microseconds]
+    [Request URI: /index.html]
+    [Full request URI: http://localhost:8000/index.html]
+    File Data: 5554 bytes
+Line-based text data: text/html (201 lines)
+    <!DOCTYPE html>\n
+    <html lang="zh-CN">\n
+    <head>\n
+        <meta charset="UTF-8">\n
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">\n
+        <title>计算机网络实验3 - Web服务器</title>\n
+        <style>\n
+            * {\n
+                margin: 0;\n
+                padding: 0;\n
+                box-sizing: border-box;\n
+            }\n
+    \n
+            body {\n
+                font-family: "Microsoft YaHei", Arial, sans-serif;\n
+                background-color: #f5f5f5;\n
+                line-height: 1.6;\n
+                color: #333;\n
+            }\n
+    \n
+            .container {\n
+                max-width: 1000px;\n
+                margin: 0 auto;\n
+                padding: 20px;\n
+                background-color: white;\n
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\n
+            }\n
+    \n
+            header {\n
+                background-color: #2c3e50;\n
+                color: white;\n
+                padding: 30px 20px;\n
+                border-radius: 8px 8px 0 0;\n
+                text-align: center;\n
+            }\n
+    \n
+            header h1 {\n
+                font-size: 32px;\n
+                margin-bottom: 10px;\n
+            }\n
+    \n
+            header p {\n
+                font-size: 14px;\n
+                opacity: 0.9;\n
+            }\n
+    \n
+            .info-section {\n
+                padding: 30px 20px;\n
+                background-color: #ecf0f1;\n
+                border-bottom: 2px solid #bdc3c7;\n
+            }\n
+    \n
+            .info-section h2 {\n
+                color: #2c3e50;\n
+                margin-bottom: 20px;\n
+                font-size: 24px;\n
+            }\n
+    \n
+            .info-item {\n
+                display: flex;\n
+                justify-content: space-between;\n
+                padding: 12px 0;\n
+                border-bottom: 1px solid #bdc3c7;\n
+                font-size: 16px;\n
+            }\n
+    \n
+            .info-item:last-child {\n
+                border-bottom: none;\n
+            }\n
+    \n
+            .info-label {\n
+                font-weight: bold;\n
+                color: #2c3e50;\n
+                min-width: 100px;\n
+            }\n
+    \n
+            .info-value {\n
+                color: #27ae60;\n
+                font-weight: 500;\n
+            }\n
+    \n
+            .gallery-section {\n
+                padding: 30px 20px;\n
+            }\n
+    \n
+            .gallery-section h2 {\n
+                color: #2c3e50;\n
+                margin-bottom: 30px;\n
+                font-size: 24px;\n
+                text-align: center;\n
+            }\n
+    \n
+            .gallery {\n
+                display: grid;\n
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));\n
+                gap: 20px;\n
+                margin-bottom: 20px;\n
+            }\n
+    \n
+            .gallery-item {\n
+                background-color: white;\n
+                border-radius: 8px;\n
+                overflow: hidden;\n
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);\n
+                transition: transform 0.3s ease;\n
+            }\n
+    \n
+            .gallery-item:hover {\n
+                transform: translateY(-5px);\n
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);\n
+            }\n
+    \n
+            .gallery-item img {\n
+                width: 100%;\n
+                height: 200px;\n
+                object-fit: cover;\n
+                display: block;\n
+            }\n
+    \n
+            .gallery-item-caption {\n
+                padding: 15px;\n
+                text-align: center;\n
+                background-color: #f9f9f9;\n
+                font-size: 14px;\n
+                color: #666;\n
+            }\n
+    \n
+            footer {\n
+                background-color: #2c3e50;\n
+                color: white;\n
+                text-align: center;\n
+                padding: 20px;\n
+                font-size: 12px;\n
+                border-radius: 0 0 8px 8px;\n
+            }\n
+    \n
+            footer p {\n
+                margin: 5px 0;\n
+            }\n
+        </style>\n
+    </head>\n
+    <body>\n
+        <div class="container">\n
+            <header>\n
+                <h1>计算机网络实验3</h1>\n
+                <p>Web服务器配置与HTTP报文分析</p>\n
+            </header>\n
+    \n
+            <div class="info-section">\n
+                <h2>个人信息</h2>\n
+                <div class="info-item">\n
+                    <span class="info-label">姓名：</span>\n
+                    <span class="info-value">周重天</span>\n
+                </div>\n
+                <div class="info-item">\n
+                    <span class="info-label">学号：</span>\n
+                    <span class="info-value">2311082</span>\n
+                </div>\n
+                <div class="info-item">\n
+                    <span class="info-label">专业：</span>\n
+                    <span class="info-value">计算机科学与技术</span>\n
+                </div>\n
+            </div>\n
+    \n
+            <div class="gallery-section">\n
+                <h2>图片展示</h2>\n
+                <div class="gallery">\n
+                    <div class="gallery-item">\n
+                        <img src="fig/1.jpg" alt="图片1">\n
+                        <div class="gallery-item-caption">图片1</div>\n
+                    </div>\n
+                    <div class="gallery-item">\n
+                        <img src="fig/2.jpg" alt="图片2">\n
+                        <div class="gallery-item-caption">图片2</div>\n
+                    </div>\n
+                    <div class="gallery-item">\n
+                        <img src="fig/3.jpg" alt="图片3">\n
+                        <div class="gallery-item-caption">图片3</div>\n
+                    </div>\n
+                    <div class="gallery-item">\n
+                        <img src="fig/4.jpg" alt="图片4">\n
+                        <div class="gallery-item-caption">图片4</div>\n
+                    </div>\n
+                    <div class="gallery-item">\n
+                        <img src="fig/5.jpg" alt="图片5">\n
+                        <div class="gallery-item-caption">图片5</div>\n
+                    </div>\n
+                    <div class="gallery-item">\n
+                        <img src="fig/6.jpg" alt="图片6">\n
+                        <div class="gallery-item-caption">图片6</div>\n
+                    </div>\n
+                </div>\n
+            </div>\n
+    \n
+            <footer>\n
+                <p>计算机网络实验3 - Web服务器与HTTP协议分析</p>\n
+                <p>使用HTTP协议 | 简单静态网页</p>\n
+            </footer>\n
+        </div>\n
+    </body>\n
+    </html>\n
+
+
+48的
+Frame 48: Packet, 777 bytes on wire (6216 bits), 777 bytes captured (6216 bits) on interface \Device\NPF_Loopback, id 0
+Null/Loopback
+Internet Protocol Version 6, Src: ::1, Dst: ::1
+Transmission Control Protocol, Src Port: 18942, Dst Port: 8000, Seq: 1, Ack: 1, Len: 713
+Hypertext Transfer Protocol
+Frame 48: Packet, 777 bytes on wire (6216 bits), 777 bytes captured (6216 bits) on interface \Device\NPF_Loopback, id 0
+Null/Loopback
+    Family: IPv6 (24)
+Internet Protocol Version 6, Src: ::1, Dst: ::1
+    0110 .... = Version: 6
+    .... 0000 0000 .... .... .... .... .... = Traffic Class: 0x00 (DSCP: CS0, ECN: Not-ECT)
+    .... 0100 1110 1000 1101 1100 = Flow Label: 0x4e8dc
+    Payload Length: 733
+    Next Header: TCP (6)
+    Hop Limit: 128
+    Source Address: ::1
+    Destination Address: ::1
+    [Stream index: 0]
+Transmission Control Protocol, Src Port: 18942, Dst Port: 8000, Seq: 1, Ack: 1, Len: 713
+Hypertext Transfer Protocol
+
+
+Transmission Control Protocol, Src Port: 18942, Dst Port: 8000, Seq: 1, Ack: 1, Len: 713
+    Source Port: 18942
+    Destination Port: 8000
+    [Stream index: 5]
+    [Stream Packet Number: 4]
+    [Conversation completeness: Complete, WITH_DATA (31)]
+        ..0. .... = RST: Absent
+        ...1 .... = FIN: Present
+        .... 1... = Data: Present
+        .... .1.. = ACK: Present
+        .... ..1. = SYN-ACK: Present
+        .... ...1 = SYN: Present
+        [Completeness Flags: ·FDASS]
+    [TCP Segment Len: 713]
+    Sequence Number: 1    (relative sequence number)
+    Sequence Number (raw): 2021507119
+    [Next Sequence Number: 714    (relative sequence number)]
+    Acknowledgment Number: 1    (relative ack number)
+    Acknowledgment number (raw): 3266722219
+    0101 .... = Header Length: 20 bytes (5)
+    Flags: 0x018 (PSH, ACK)
+        000. .... .... = Reserved: Not set
+        ...0 .... .... = Accurate ECN: Not set
+        .... 0... .... = Congestion Window Reduced: Not set
+        .... .0.. .... = ECN-Echo: Not set
+        .... ..0. .... = Urgent: Not set
+        .... ...1 .... = Acknowledgment: Set
+        .... .... 1... = Push: Set
+        .... .... .0.. = Reset: Not set
+        .... .... ..0. = Syn: Not set
+        .... .... ...0 = Fin: Not set
+        [TCP Flags: ·······AP···]
+    Window: 8440
+    [Calculated window size: 2160640]
+    [Window size scaling factor: 256]
+    Checksum: 0xb930 [unverified]
+    [Checksum Status: Unverified]
+    Urgent Pointer: 0
+    [Timestamps]
+        [Time since first frame in this TCP stream: 13.798000 milliseconds]
+        [Time since previous frame in this TCP stream: 13.739000 milliseconds]
+    [SEQ/ACK analysis]
+        [iRTT: 59.000 microseconds]
+        [Bytes in flight: 713]
+        [Bytes sent since last PSH flag: 713]
+    [Client Contiguous Streams: 1]
+    [Server Contiguous Streams: 1]
+    TCP payload (713 bytes)
+Hypertext Transfer Protocol
+    GET /fig/1.jpg HTTP/1.1\r\n
+    Host: localhost:8000\r\n
+    Connection: keep-alive\r\n
+    sec-ch-ua-platform: "Windows"\r\n
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36\r\n
+    sec-ch-ua: "Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"\r\n
+    sec-ch-ua-mobile: ?0\r\n
+    Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8\r\n
+    Sec-Fetch-Site: same-origin\r\n
+    Sec-Fetch-Mode: no-cors\r\n
+    Sec-Fetch-Dest: image\r\n
+    Referer: http://localhost:8000/index.html\r\n
+    Accept-Encoding: gzip, deflate, br, zstd\r\n
+    Accept-Language: en-US,en;q=0.9\r\n
+    Cookie: Pycharm-4ca19b4b=9a13af7f-e666-4ec0-9297-54e012e5bf14; Hm_lvt_087ceb5ea69d10fb5bbb6bc49c209fa2=1739155505\r\n
+    \r\n
+    [Response in frame: 52]
+    [Full request URI: http://localhost:8000/fig/1.jpg]
+
+52的
+Frame 52: Packet, 4535 bytes on wire (36280 bits), 4535 bytes captured (36280 bits) on interface \Device\NPF_Loopback, id 0
+    Section number: 1
+    Interface id: 0 (\Device\NPF_Loopback)
+    Encapsulation type: NULL/Loopback (15)
+    Arrival Time: Dec 25, 2025 14:43:10.763697000 中国标准时间
+    UTC Arrival Time: Dec 25, 2025 06:43:10.763697000 UTC
+    Epoch Arrival Time: 1766644990.763697000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 267.000 microseconds]
+    [Time delta from previous displayed frame: 1.285000 milliseconds]
+    [Time since reference or first frame: 1.527718000 seconds]
+    Frame Number: 52
+    Frame Length: 4535 bytes (36280 bits)
+    Capture Length: 4535 bytes (36280 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: null:ipv6:tcp:http:image-jfif]
+    Character encoding: ASCII (0)
+    [Coloring Rule Name: HTTP]
+    [Coloring Rule String: http || tcp.port == 80 || http2]
+Internet Protocol Version 6, Src: ::1, Dst: ::1
+    0110 .... = Version: 6
+    .... 0000 0000 .... .... .... .... .... = Traffic Class: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        .... 0000 00.. .... .... .... .... .... = Differentiated Services Codepoint: Default (0)
+        .... .... ..00 .... .... .... .... .... = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    .... 0011 1101 0110 0000 0111 = Flow Label: 0x3d607
+    Payload Length: 4491
+    Next Header: TCP (6)
+    Hop Limit: 128
+    Source Address: ::1
+    Destination Address: ::1
+    [Stream index: 0]
+Transmission Control Protocol, Src Port: 8000, Dst Port: 18942, Seq: 189, Ack: 714, Len: 4471
+    Source Port: 8000
+    Destination Port: 18942
+    [Stream index: 5]
+    [Stream Packet Number: 8]
+    [Conversation completeness: Complete, WITH_DATA (31)]
+        ..0. .... = RST: Absent
+        ...1 .... = FIN: Present
+        .... 1... = Data: Present
+        .... .1.. = ACK: Present
+        .... ..1. = SYN-ACK: Present
+        .... ...1 = SYN: Present
+        [Completeness Flags: ·FDASS]
+    [TCP Segment Len: 4471]
+    Sequence Number: 189    (relative sequence number)
+    Sequence Number (raw): 3266722407
+    [Next Sequence Number: 4660    (relative sequence number)]
+    Acknowledgment Number: 714    (relative ack number)
+    Acknowledgment number (raw): 2021507832
+    0101 .... = Header Length: 20 bytes (5)
+    Flags: 0x018 (PSH, ACK)
+        000. .... .... = Reserved: Not set
+        ...0 .... .... = Accurate ECN: Not set
+        .... 0... .... = Congestion Window Reduced: Not set
+        .... .0.. .... = ECN-Echo: Not set
+        .... ..0. .... = Urgent: Not set
+        .... ...1 .... = Acknowledgment: Set
+        .... .... 1... = Push: Set
+        .... .... .0.. = Reset: Not set
+        .... .... ..0. = Syn: Not set
+        .... .... ...0 = Fin: Not set
+        [TCP Flags: ·······AP···]
+    Window: 8437
+    [Calculated window size: 2159872]
+    [Window size scaling factor: 256]
+    Checksum: 0xbb1c [unverified]
+    [Checksum Status: Unverified]
+    Urgent Pointer: 0
+    [Timestamps]
+        [Time since first frame in this TCP stream: 15.083000 milliseconds]
+        [Time since previous frame in this TCP stream: 267.000 microseconds]
+    [SEQ/ACK analysis]
+        [iRTT: 59.000 microseconds]
+        [Bytes in flight: 4471]
+        [Bytes sent since last PSH flag: 4471]
+    [Client Contiguous Streams: 1]
+    [Server Contiguous Streams: 1]
+    TCP payload (4471 bytes)
+    TCP segment data (4471 bytes)
+Hypertext Transfer Protocol
+    HTTP/1.0 200 OK\r\n
+        Response Version: HTTP/1.0
+        Status Code: 200
+        [Status Code Description: OK]
+        Response Phrase: OK
+    Server: SimpleHTTP/0.6 Python/3.13.5\r\n
+    Date: Thu, 25 Dec 2025 06:43:10 GMT\r\n
+    Content-type: image/jpeg\r\n
+    Content-Length: 4471\r\n
+    Last-Modified: Thu, 25 Dec 2025 06:24:16 GMT\r\n
+    \r\n
+    [Request in frame: 48]
+    [Time since request: 1.285000 milliseconds]
+    [Request URI: /fig/1.jpg]
+    [Full request URI: http://localhost:8000/fig/1.jpg]
+    File Data: 4471 bytes
+JPEG File Interchange Format
+    Marker: Start of Image (0xffd8)
+    Marker segment: Reserved for application segments - 0 (0xFFE0)
+    Marker segment: Define quantization table(s) (0xFFDB)
+    Start of Frame header: Start of Frame (non-differential, Huffman coding) - Baseline DCT (0xFFC0)
+    Marker segment: Define Huffman table(s) (0xFFC4)
+    Marker segment: Define Huffman table(s) (0xFFC4)
+    Marker segment: Define Huffman table(s) (0xFFC4)
+    Marker segment: Define Huffman table(s) (0xFFC4)
+    Start of Segment header: Start of Scan (0xFFDA)
+    Entropy-coded segment (dissection is not yet implemented) […]: f8b2250056933500ae9457480aa515d2b400d2ba44ae900202a2994a52345b2d4454a6941ed6c8cbb821598c83442b6fb785a21ca923229c4b7fa5db8fd14dd8967d23d07a9e83fc1fd176f1fa8e1be669c9c08b4dfbbd
+    Marker: End of Image (0xffd9)
